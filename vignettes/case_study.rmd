@@ -17,8 +17,8 @@ editor_options:
 
 ```{r "setup", include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+    collapse = TRUE,
+    comment = "#>"
 )
 ```
 
@@ -78,7 +78,7 @@ interest.
 
 ```{r echo=TRUE}
 library(readxl)
-input <- read.csv2("vignette_data/bio_targets.csv",sep = ",")
+input <- read.csv2("vignette_data/bio_targets.csv", sep = ",")
 kableExtra::kable(head(input))
 ```
 
@@ -90,12 +90,13 @@ Our biomarkers are defined as:
 ```{r echo=TRUE, warning=FALSE, message=FALSE}
 library(TARDIS)
 targets <- createTargetList("vignette_data/bio_targets.csv",
-                            pos_pattern = "+",
-                            neg_pattern = "-",
-                            polarity = "positive",
-                            ion_column = "POS",
-                            columns_of_interest = c("ID", "name", "mz", "rt"))
-kableExtra::kable(targets[21:26,])
+    pos_pattern = "+",
+    neg_pattern = "-",
+    polarity = "positive",
+    ion_column = "POS",
+    columns_of_interest = c("ID", "name", "mz", "rt")
+)
+kableExtra::kable(targets[21:26, ])
 ```
 
 
@@ -108,15 +109,20 @@ For more information on how to load your data from the MetaboLights database, we
 library(MsExperiment)
 library(MsIO)
 library(MsBackendMetaboLights)
-param <- MetaboLightsParam(mtblsId = "MTBLS8735",
-                           assayName = paste0("a_MTBLS8735_LC-MS_positive_",
-                                              "hilic_metabolite_profiling.txt"),
-                           filePattern = ".mzML")
+param <- MetaboLightsParam(
+    mtblsId = "MTBLS8735",
+    assayName = paste0(
+        "a_MTBLS8735_LC-MS_positive_",
+        "hilic_metabolite_profiling.txt"
+    ),
+    filePattern = ".mzML"
+)
 lcms1 <- readMsObject(MsExperiment(),
-                      param,
-                      keepOntology = FALSE,
-                      keepProtocol = FALSE,
-                      simplify = TRUE)
+    param,
+    keepOntology = FALSE,
+    keepProtocol = FALSE,
+    simplify = TRUE
+)
 ```
 
 ```{r echo=TRUE}
@@ -126,16 +132,18 @@ lcms1
 Simplifying the sampleData:
 
 ```{r echo=TRUE}
-colnames(sampleData(lcms1)) <- c("sample_name", "spectraOrigin",
-                                "metabolite_asssignment_file",
-                                "source_name",
-                                "organism",
-                                "blood_sample_type",
-                                "type", "age", "unit", "phenotype")
+colnames(sampleData(lcms1)) <- c(
+    "sample_name", "spectraOrigin",
+    "metabolite_asssignment_file",
+    "source_name",
+    "organism",
+    "blood_sample_type",
+    "type", "age", "unit", "phenotype"
+)
 
 # Add "QC" to the phenotype of the QC samples
 sampleData(lcms1)$phenotype[sampleData(lcms1)$sample_name == "POOL"] <- "QC"
-sampleData(lcms1)$sample_name[sampleData(lcms1)$sample_name == "POOL" ] <- c("POOL1", "POOL2", "POOL3", "POOL4")
+sampleData(lcms1)$sample_name[sampleData(lcms1)$sample_name == "POOL"] <- c("POOL1", "POOL2", "POOL3", "POOL4")
 sampleData(lcms1)$type[sampleData(lcms1)$type == "pool"] <- "QC"
 
 #  Add injection index column
@@ -143,9 +151,11 @@ sampleData(lcms1)$injection_index <- seq_len(nrow(sampleData(lcms1)))
 ```
 
 ```{r echo=TRUE}
-sampleData(lcms1)[, c("spectraOrigin",
-                     "phenotype", "sample_name", "type",
-                     "injection_index")] |>
+sampleData(lcms1)[, c(
+    "spectraOrigin",
+    "phenotype", "sample_name", "type",
+    "injection_index"
+)] |>
     kableExtra::kable(format = "pipe")
 ```
 
@@ -182,38 +192,41 @@ span throughout most of the analysis. For more info on how to choose the right
 
 
 ```{r echo=TRUE}
-subset <- targets[c(17,14,7,8,15,21:26),]
+subset <- targets[c(17, 14, 7, 8, 15, 21:26), ]
 ```
 
 
 ```{r echo=TRUE, warning=FALSE}
-results <- tardisPeaks( lcmsData = lcms1, 
-                        dbData = subset,
-                        mass_range = NULL,
-                        polarity = "positive",
-                        output_directory = "vignette_data/output/case/screening/",
-                        batch_positions = list(c(1,10)),
-                        QC_pattern = "QC",
-                        int_std_id = as.character(1:20),
-                        screening_mode = TRUE)
+results <- tardisPeaks(
+    lcmsData = lcms1,
+    dbData = subset,
+    mass_range = NULL,
+    polarity = "positive",
+    output_directory = "vignette_data/output/case/screening/",
+    batch_positions = list(c(1, 10)),
+    QC_pattern = "QC",
+    int_std_id = as.character(1:20),
+    screening_mode = TRUE
+)
 ```
 
 The resulting EICs are saved in the output folder and can be inspected.
 
 
 ```{r echo=FALSE, out.width="49%"}
-knitr::include_graphics(c("vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_7.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_8.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_14.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_15.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_17.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_21.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_22.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_23.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_24.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_25.png",
-                         "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_26.png"
-                         ))
+knitr::include_graphics(c(
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_7.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_8.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_14.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_15.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_17.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_21.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_22.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_23.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_24.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_25.png",
+    "vignette_data/output/case/screening/Diagnostic_QCs_Batch_1/Component_26.png"
+))
 ```
 
 Based on the EICs we can see that detection, RT alignment and integration 
@@ -231,15 +244,17 @@ Now we can perform peak detection in all our runs by setting
 
 
 ```{r echo=TRUE, warning=FALSE}
-results <- tardisPeaks( lcmsData = lcms1, 
-                        dbData = subset,
-                        mass_range = NULL,
-                        polarity = "positive",
-                        output_directory = "vignette_data/output/case/",
-                        batch_positions = list(c(1,10)),
-                        QC_pattern = "QC",
-                        int_std_id = as.character(1:20),
-                        screening_mode = FALSE)
+results <- tardisPeaks(
+    lcmsData = lcms1,
+    dbData = subset,
+    mass_range = NULL,
+    polarity = "positive",
+    output_directory = "vignette_data/output/case/",
+    batch_positions = list(c(1, 10)),
+    QC_pattern = "QC",
+    int_std_id = as.character(1:20),
+    screening_mode = FALSE
+)
 ```
 
 # Results
@@ -263,10 +278,10 @@ Other results include tables with the other metrics (Max. Int., SNR, peak_cor
 and points over the peak) and are saved into the output folder in .csv format.
 
 ```{r echo=TRUE}
-maxint <- read.csv("vignette_data/output/case/int_table.csv",check.names = FALSE)[,-1]
-SNR <- read.csv("vignette_data/output/case/snr_table.csv",check.names = FALSE)[,-1]
-peak_cor <- read.csv("vignette_data/output/case/peakcor_table.csv",check.names = FALSE)[,-1]
-pop <- read.csv("vignette_data/output/case/pop_table.csv",check.names = FALSE)[,-1]
+maxint <- read.csv("vignette_data/output/case/int_table.csv", check.names = FALSE)[, -1]
+SNR <- read.csv("vignette_data/output/case/snr_table.csv", check.names = FALSE)[, -1]
+peak_cor <- read.csv("vignette_data/output/case/peakcor_table.csv", check.names = FALSE)[, -1]
+pop <- read.csv("vignette_data/output/case/pop_table.csv", check.names = FALSE)[, -1]
 ```
 
 ```{r echo=TRUE}
@@ -289,28 +304,28 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 # Limit input data to biomarkers and not ISTD targets
-data <- AUC[4:9,]
+data <- AUC[4:9, ]
 sampledata <- data.frame(sampleData(lcms1))
 # Remove "FILES/" prefix
 sampledata$spectraOrigin <- gsub("FILES/", "", sampledata$spectraOrigin)
 # Ensure row names correspond to Feature ID
 rownames(data) <- data[, 1]
-data <- data[, -1]  # Remove the feature ID column for PCA
+data <- data[, -1] # Remove the feature ID column for PCA
 # Transpose the data so that samples are rows and features are columns
 data_t <- as.data.frame(t(data))
 # Impute NA values
 na_unidis <- function(z) {
     na <- is.na(z)
     if (any(na)) {
-        min = min(z, na.rm = TRUE)
-        z[na] <- runif(sum(na), min = min/2, max = min)
+        min <- min(z, na.rm = TRUE)
+        z[na] <- runif(sum(na), min = min / 2, max = min)
     }
     z
 }
 tmp <- apply(data_t, MARGIN = 1, na_unidis)
 data_t <- t(tmp)
 # Perform PCA
-pca_result <- prcomp(data_t, scale. = TRUE,center = TRUE)
+pca_result <- prcomp(data_t, scale. = TRUE, center = TRUE)
 # Extract PCA scores
 pca_df <- as.data.frame(pca_result$x)
 pca_df$Sample <- rownames(pca_df)
@@ -318,13 +333,14 @@ pca_df$Sample <- rownames(pca_df)
 pca_df <- left_join(pca_df, sampledata, by = c("Sample" = "spectraOrigin"))
 # Plot PCA
 ggplot(pca_df, aes(x = PC1, y = PC2, color = phenotype)) +
-  geom_point(size = 3) +
-  theme_minimal() +
-  labs(title = "PCA",
-       x = "Principal Component 1",
-       y = "Principal Component 2") +
-  scale_color_manual(values = c("red", "blue", "green")) # Customize colors if needed
-
+    geom_point(size = 3) +
+    theme_minimal() +
+    labs(
+        title = "PCA",
+        x = "Principal Component 1",
+        y = "Principal Component 2"
+    ) +
+    scale_color_manual(values = c("red", "blue", "green")) # Customize colors if needed
 ```
 
 Results are as expected:
@@ -339,28 +355,28 @@ Disregarding component nr 26, the PCA looks like:
 
 ```{r echo=TRUE}
 # Limit input data to biomarkers and not ISTD targets
-data <- AUC[4:8,]
+data <- AUC[4:8, ]
 sampledata <- data.frame(sampleData(lcms1))
 # Remove "FILES/" prefix
 sampledata$spectraOrigin <- gsub("FILES/", "", sampledata$spectraOrigin)
 # Ensure row names correspond to Feature ID
 rownames(data) <- data[, 1]
-data <- data[, -1]  # Remove the feature ID column for PCA
+data <- data[, -1] # Remove the feature ID column for PCA
 # Transpose the data so that samples are rows and features are columns
 data_t <- as.data.frame(t(data))
 # Impute NA values
 na_unidis <- function(z) {
     na <- is.na(z)
     if (any(na)) {
-        min = min(z, na.rm = TRUE)
-        z[na] <- runif(sum(na), min = min/2, max = min)
+        min <- min(z, na.rm = TRUE)
+        z[na] <- runif(sum(na), min = min / 2, max = min)
     }
     z
 }
 tmp <- apply(data_t, MARGIN = 1, na_unidis)
 data_t <- t(tmp)
 # Perform PCA
-pca_result <- prcomp(data_t, scale. = TRUE,center = TRUE)
+pca_result <- prcomp(data_t, scale. = TRUE, center = TRUE)
 # Extract PCA scores
 pca_df <- as.data.frame(pca_result$x)
 pca_df$Sample <- rownames(pca_df)
@@ -368,13 +384,14 @@ pca_df$Sample <- rownames(pca_df)
 pca_df <- left_join(pca_df, sampledata, by = c("Sample" = "spectraOrigin"))
 # Plot PCA
 ggplot(pca_df, aes(x = PC1, y = PC2, color = phenotype)) +
-  geom_point(size = 3) +
-  theme_minimal() +
-  labs(title = "PCA",
-       x = "Principal Component 1",
-       y = "Principal Component 2") +
-  scale_color_manual(values = c("blue", "red", "green")) # Customize colors if needed
-
+    geom_point(size = 3) +
+    theme_minimal() +
+    labs(
+        title = "PCA",
+        x = "Principal Component 1",
+        y = "Principal Component 2"
+    ) +
+    scale_color_manual(values = c("blue", "red", "green")) # Customize colors if needed
 ```
 
 ## Differential abundance analysis
@@ -387,18 +404,18 @@ First we remove the ISTD targets from the data and impute missing values.
 
 ```{r echo=TRUE}
 # Limit input data to biomarkers and not ISTD targets
-data <- AUC[4:8,]
+data <- AUC[4:8, ]
 sampledata <- data.frame(sampleData(lcms1))
 sampledata$spectraOrigin <- gsub("FILES/", "", sampledata$spectraOrigin)
 # Ensure row names correspond to Feature ID
 rownames(data) <- data[, 1]
-data <- data[, -1]  # Remove the feature ID column for PCA
+data <- data[, -1] # Remove the feature ID column for PCA
 data_t <- as.data.frame(t(data))
 na_unidis <- function(z) {
     na <- is.na(z)
     if (any(na)) {
-        min = min(z, na.rm = TRUE)
-        z[na] <- runif(sum(na), min = min/2, max = min)
+        min <- min(z, na.rm = TRUE)
+        z[na] <- runif(sum(na), min = min / 2, max = min)
     }
     z
 }
@@ -408,17 +425,17 @@ data_t <- as.data.frame(t(tmp))
 # Merge with sample metadata
 data_t$Sample <- rownames(data_t)
 data_t <- left_join(data_t, sampledata, by = c("Sample" = "spectraOrigin"))
-data_t <- data_t[-which(data_t$phenotype == "QC"),]
+data_t <- data_t[-which(data_t$phenotype == "QC"), ]
 ```
 
 Next we visualize the log2 transformed abudances of each feature in each group using boxplots.
 
 ```{r echo=TRUE}
-boxdata <- data_t[,c(1:5,15)]
-boxdata <- pivot_longer(boxdata,cols = !phenotype,names_to = "feature",values_to = "abundance")
-ggplot(boxdata, aes(x=feature, y=log2(abundance), fill=phenotype)) + 
+boxdata <- data_t[, c(1:5, 15)]
+boxdata <- pivot_longer(boxdata, cols = !phenotype, names_to = "feature", values_to = "abundance")
+ggplot(boxdata, aes(x = feature, y = log2(abundance), fill = phenotype)) +
     geom_boxplot() +
-  scale_fill_manual(values = c("blue","red"))
+    scale_fill_manual(values = c("blue", "red"))
 ```
 
 
@@ -430,11 +447,11 @@ option in the `wilcox.test` function. Data is log2 transformed.
 ```{r echo=TRUE}
 pres <- data.frame(Feature = colnames(data_t)[1:5], p_value = NA)
 for (i in 1:5) {
-  feature_values <- data_t[, i]
-  group1 <- log2(feature_values[data_t$phenotype == "CVD"])
-  group2 <- log2(feature_values[data_t$phenotype == "CTR"])
-  pres$p_value[i] <- wilcox.test(group1, group2,alternative = "less")$p.value
-  }
+    feature_values <- data_t[, i]
+    group1 <- log2(feature_values[data_t$phenotype == "CVD"])
+    group2 <- log2(feature_values[data_t$phenotype == "CTR"])
+    pres$p_value[i] <- wilcox.test(group1, group2, alternative = "less")$p.value
+}
 pres$adj_p_value <- p.adjust(pres$p_value, method = "fdr")
 knitr::kable(pres)
 ```

@@ -9,11 +9,11 @@
 #'
 #' @noRd
 .collapse_safe <- function(x, collapse = ",", null_string = "") {
-  if (is.null(x)) {
-    null_string
-  } else if (length(x) == 0) {
-    ""
-  } else {
-    paste(x, collapse = collapse)
-  }
+    if (is.null(x)) {
+        null_string
+    } else if (length(x) == 0) {
+        ""
+    } else {
+        paste(x, collapse = collapse)
+    }
 }

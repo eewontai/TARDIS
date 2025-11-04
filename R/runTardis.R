@@ -8,10 +8,11 @@
 
 #' @export
 runTardis <- function() {
-  appDir <- system.file("tardis_app", package = "TARDIS")
-  if (appDir == "") {
-    stop("Could not find example directory. Try re-installing `TARDIS`.",
-         call. = FALSE)
-  }
-  shiny::runApp(appDir, display.mode = "normal")
+    appDir <- system.file("tardis_app", package = "TARDIS")
+    if (appDir == "") {
+        stop("Could not find example directory. Try re-installing `TARDIS`.",
+            call. = FALSE
+        )
+    }
+    shiny::runApp(appDir, display.mode = "normal")
 }

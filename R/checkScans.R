@@ -10,13 +10,13 @@
 #' @importFrom Spectra isEmpty
 #' @export
 #' @author Pablo Vangeenderhuysen
-checkScans <- function(spectra){
-  scans_per_sample <- table(dataOrigin(spectra))
-  mean <- (mean(scans_per_sample))
-  bad_runs <- which(scans_per_sample < 0.5*mean)
-  if(isEmpty(bad_runs) == FALSE){
-    names <- basename(names(bad_runs))
-    warning(paste("File",names,"contains less than 50% of the mean of scans
+checkScans <- function(spectra) {
+    scans_per_sample <- table(dataOrigin(spectra))
+    mean <- (mean(scans_per_sample))
+    bad_runs <- which(scans_per_sample < 0.5 * mean)
+    if (isEmpty(bad_runs) == FALSE) {
+        names <- basename(names(bad_runs))
+        warning(paste("File", names, "contains less than 50% of the mean of scans
                    in the samples."))
-  }
+    }
 }

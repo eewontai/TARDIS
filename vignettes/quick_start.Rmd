@@ -17,8 +17,8 @@ editor_options:
 
 ```{r "setup", include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+    collapse = TRUE,
+    comment = "#>"
 )
 ```
 
@@ -82,11 +82,12 @@ For more info on how to use the function, check the help page: `?createTargetLis
 ```{r}
 library(TARDIS)
 targets <- createTargetList("vignette_data/targets.xlsx",
-                            pos_pattern = "+",
-                            neg_pattern = "-",
-                            polarity = "positive",
-                            ion_column = "ion",
-                            columns_of_interest = c("id", "name", "mz", "rt"))
+    pos_pattern = "+",
+    neg_pattern = "-",
+    polarity = "positive",
+    ion_column = "ion",
+    columns_of_interest = c("id", "name", "mz", "rt")
+)
 
 kableExtra::kable(head(targets))
 ```
@@ -109,9 +110,10 @@ sample type in the sampleData to distinguish QC from sample runs.
 
 ```{r warning=FALSE, message = FALSE}
 library(MsExperiment)
-files <- list.files(path = "vignette_data/mzML/",full.names = TRUE)
+files <- list.files(path = "vignette_data/mzML/", full.names = TRUE)
 ms_data <- readMsExperiment(files,
-                            backend = Spectra::MsBackendMzR())
+    backend = Spectra::MsBackendMzR()
+)
 ```
 
 ```{r}
@@ -119,20 +121,22 @@ ms_data
 ```
 
 ```{r}
-sampleData(ms_data)$type <- c("QC",
-              "QC",
-              "sample",
-              "sample",
-              "sample",
-              "sample",
-              "QC",
-              "QC",
-              "sample",
-              "sample",
-              "sample",
-              "sample",
-              "QC",
-              "QC")
+sampleData(ms_data)$type <- c(
+    "QC",
+    "QC",
+    "sample",
+    "sample",
+    "sample",
+    "sample",
+    "QC",
+    "QC",
+    "sample",
+    "sample",
+    "sample",
+    "sample",
+    "QC",
+    "QC"
+)
 ```
 
 # Data with multiple scan windows
@@ -155,8 +159,10 @@ I limited the selection to 10 targets: 5 internal standards and 5 endogenous
 metabolites.
 
 ```{r}
-targets = targets[targets$ID %in% c("1576","1577","1578","1583","331",
-                            "7","9","131","179","183"),]
+targets <- targets[targets$ID %in% c(
+    "1576", "1577", "1578", "1583", "331",
+    "7", "9", "131", "179", "183"
+), ]
 ```
 
 We can run screening mode using the argument `screening_mode = TRUE` in
@@ -166,45 +172,50 @@ For more details on the inputs of the function, please read the help page
 `?tardisPeaks`
 
 ```{r warning=FALSE}
-results <- tardisPeaks(file_path = "vignette_data/mzML/",
-                        dbData = targets,
-                        mass_range = NULL,
-                        polarity = "positive",
-                        output_directory = "vignette_data/output/screening/",
-                        batch_positions = list(c(1,14)),
-                        QC_pattern = "QC",
-                        int_std_id = c("1576","1577","1578","1583","331"),
-                        screening_mode = TRUE)
+results <- tardisPeaks(
+    file_path = "vignette_data/mzML/",
+    dbData = targets,
+    mass_range = NULL,
+    polarity = "positive",
+    output_directory = "vignette_data/output/screening/",
+    batch_positions = list(c(1, 14)),
+    QC_pattern = "QC",
+    int_std_id = c("1576", "1577", "1578", "1583", "331"),
+    screening_mode = TRUE
+)
 ```
 Or, as mentioned, the MsExperiment object can be used as input instead.
 
 ```{r}
-results <- tardisPeaks( lcmsData = ms_data, 
-                        dbData = targets,
-                        mass_range = NULL,
-                        polarity = "positive",
-                        output_directory = "vignette_data/output/screening/",
-                        batch_positions = list(c(1,14)),
-                        QC_pattern = "QC",
-                        int_std_id = c("1576","1577","1578","1583","331"),
-                        screening_mode = TRUE)
+results <- tardisPeaks(
+    lcmsData = ms_data,
+    dbData = targets,
+    mass_range = NULL,
+    polarity = "positive",
+    output_directory = "vignette_data/output/screening/",
+    batch_positions = list(c(1, 14)),
+    QC_pattern = "QC",
+    int_std_id = c("1576", "1577", "1578", "1583", "331"),
+    screening_mode = TRUE
+)
 ```
 
 
 The resulting EICs are saved in the output folder and can be inspected:
 
 ```{r,out.width="49%" }
-knitr::include_graphics(c("vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_7.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_9.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_131.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_179.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_183.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_331.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_1576.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_1577.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_1578.png",
-                         "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_1583.png"
-                         ))
+knitr::include_graphics(c(
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_7.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_9.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_131.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_179.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_183.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_331.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_1576.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_1577.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_1578.png",
+    "vignette_data/output/screening/Diagnostic_QCs_Batch_1/Component_1583.png"
+))
 ```
 
 Based on the EICs we can see that detection and integration were successful, 
@@ -225,32 +236,35 @@ Now we can perform peak detection in all our runs by setting
 
 
 ```{r warning=FALSE}
-results <- tardisPeaks(lcmsData = ms_data,
-                        dbData = targets,
-                        mass_range = NULL,
-                        polarity = "positive",
-                        output_directory = "vignette_data/output/",
-                        batch_positions = list(c(1,14)),
-                        QC_pattern = "QC",
-                        int_std_id = c("1576","1577","1578","1583","331"),
-                        screening_mode = FALSE)
+results <- tardisPeaks(
+    lcmsData = ms_data,
+    dbData = targets,
+    mass_range = NULL,
+    polarity = "positive",
+    output_directory = "vignette_data/output/",
+    batch_positions = list(c(1, 14)),
+    QC_pattern = "QC",
+    int_std_id = c("1576", "1577", "1578", "1583", "331"),
+    screening_mode = FALSE
+)
 ```
 # Results
 
 The resulting EICs are again saved in the output folder and can be inspected:
 
 ```{r,out.width="49%" }
-knitr::include_graphics(c("vignette_data/output/Diagnostic_QCs_Batch_1/Component_7.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_9.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_131.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_179.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_183.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_331.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_1576.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_1577.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_1578.png",
-                         "vignette_data/output/Diagnostic_QCs_Batch_1/Component_1583.png"
-                         ))
+knitr::include_graphics(c(
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_7.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_9.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_131.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_179.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_183.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_331.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_1576.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_1577.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_1578.png",
+    "vignette_data/output/Diagnostic_QCs_Batch_1/Component_1583.png"
+))
 ```
 
 The `results` object is a `list` that contains a `data.frame` with the AUC of
@@ -259,23 +273,21 @@ average metrics for each target in the QC runs.
 
 ```{r}
 kableExtra::kable(head(results[[1]]))
-
 ```
 
 
 ```{r}
 kableExtra::kable(head(results[[2]]))
-
 ```
 
 Other results include tables with the other metrics (Max. Int., SNR, peak_cor 
 and points over the peak) and are saved into the output folder.
 
 ```{r}
-maxint <- read.csv("vignette_data/output/int_table.csv",check.names = FALSE)
-SNR <- read.csv("vignette_data/output/snr_table.csv",check.names = FALSE)
-peak_cor <- read.csv("vignette_data/output/peakcor_table.csv",check.names = FALSE)
-pop <- read.csv("vignette_data/output/pop_table.csv",check.names = FALSE)
+maxint <- read.csv("vignette_data/output/int_table.csv", check.names = FALSE)
+SNR <- read.csv("vignette_data/output/snr_table.csv", check.names = FALSE)
+peak_cor <- read.csv("vignette_data/output/peakcor_table.csv", check.names = FALSE)
+pop <- read.csv("vignette_data/output/pop_table.csv", check.names = FALSE)
 ```
 
 ```{r}
