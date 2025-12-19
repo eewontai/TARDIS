@@ -1,5 +1,8 @@
 # TARDIS 1.0
 
+## Changes in 1.2.0
+- Implement rudimentary smoothing simulator
+
 ## Changes in 1.1.0
 - Implement polarity filter
 
