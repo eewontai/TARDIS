@@ -26,6 +26,7 @@ plotDiagnostic <-
     y_list,
     batchnr,
     sample_names) {
+        # if there is QC
         ## Define colors for rt,int pairs and x,y pairs
         if (length(grep("QC", sample_names)) != 0) {
             # Select only the  QC's for plotting
@@ -65,7 +66,7 @@ plotDiagnostic <-
                 output_directory, "Diagnostic_QCs_Batch_",
                 batchnr
             ), plot_file))
-            par(mar = c(5.1, 4.1, 4.1, 10.1), xpd = TRUE)
+            par(mar = c(5.1, 4.1, 4.1, 10.1), xpd = TRUE)   # padding around the plot
             plot(
                 NULL,
                 xlim = range(unlist(rt_list) / 60, unlist(x_list) / 60),
@@ -82,10 +83,10 @@ plotDiagnostic <-
             # Plot lines and points using mapply with colors
             mapply(
                 function(rt,
-    int,
-    x,
-    y,
-    rt_int_color)
+                        int,
+                        x,
+                        y,
+                        rt_int_color)
                 # x_y_color)
                 {
                     lines(rt / 60, int, col = rt_int_color) # Line plot for rt and int
@@ -120,10 +121,10 @@ plotDiagnostic <-
                 title.cex = 0.8
             )
             dev.off()
-        } else {
+        } else {   # if there is no QC
             chunk_size <- 5
             num_chunks <- ceiling(length(rt_list) / chunk_size)
-            for (i in 1:num_chunks) {
+            for (i in 1:num_chunks) {  # for each chunk, create one plot and save it
                 start_index <- (i - 1) * chunk_size + 1
                 end_index <- min(i * chunk_size, length(rt_list))
 

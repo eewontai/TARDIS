@@ -32,7 +32,7 @@ integrateSinglePeak <- function(file_path, rt, mz, ppm, rtdev, smoothing) {
     )
     dbData <- data.frame(rt * 60, mz)
     colnames(dbData) <- c("tr", "m/z")
-    range <- createRanges(data, dbData, ppm, rtdev)
+    range <- createRanges(data, dbData, ppm, rtdev) # createRanges output: A list containing the m/z and retention time ranges for all given target compounds
     mzRange <- range[[1]]
     rtRange <- range[[2]]
     spectra <- data@spectra
@@ -55,7 +55,8 @@ integrateSinglePeak <- function(file_path, rt, mz, ppm, rtdev, smoothing) {
         int <- smoothed
         int[int < 0] <- 0
     }
-    border <- find_peak_points(rt, smoothed, dbData$tr)
+    border <- find_peak_points(rt, smoothed, dbData$tr, 0.5)
+
     x <- rt[border["left"]:border["right"]]
     y <- int[border["left"]:border["right"]]
     rt_list <- list(rt)

@@ -8,11 +8,11 @@
 
 #' @export
 runTardis <- function() {
-    appDir <- system.file("tardis_app", package = "TARDIS")
+    appDir <- system.file("tardis_app", package = "TARDIS")   # searches for tardis_app folder in TARDIS directory
     if (appDir == "") {
         stop("Could not find example directory. Try re-installing `TARDIS`.",
             call. = FALSE
         )
     }
-    shiny::runApp(appDir, display.mode = "normal")
+    shiny::runApp(appDir, display.mode = "normal")   # run tardis_app
 }

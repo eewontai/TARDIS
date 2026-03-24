@@ -1,0 +1,6 @@
+# Use 'linters_with_defaults' instead of 'with_defaults' (deprecated in new version)
+linters: linters_with_defaults(
+    line_length_linter = NULL,
+    indentation_linter = NULL,
+    object_usage_linter = NULL
+  )

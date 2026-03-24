@@ -3,7 +3,8 @@ ui <- bslib::page_navbar(
   shinyjs::useShinyjs(),  # Initialize shinyjs
   title = div(img(src="tardis_new.png",height=100,width =100)),
   bg = "#003B6F",
-  inverse = TRUE,
+  inverse = TRUE,  # background is dark, text is light color
+  # 'create target list' tab - select/input options in boxes
   bslib::nav_panel(title = "Create target list",
             p(
               column(width = 6,
@@ -16,6 +17,7 @@ ui <- bslib::page_navbar(
                      actionButton("create_target_list", "Create target list")
               )
             )),
+  # 'targeted peak detection' tab - select/input options in boxes
   bslib::nav_panel(title = "Targeted peak detection",
             bslib::page_fillable(
               bslib::layout_columns(
@@ -44,7 +46,8 @@ ui <- bslib::page_navbar(
                   checkboxInput("screening_mode", "Screening mode", value = FALSE),
                   checkboxInput("rt_alignment", "RT alignment", value = TRUE),
                   checkboxInput("smoothing", "Smoothing", value = TRUE),
-                  numericInput("max_int_filter", "Peak intensity filter:", value = NULL)
+                  numericInput("max_int_filter", "Peak intensity filter:", value = NULL),
+                  numericInput("num_cores", "Number of Cores to use for Parallelization:", value = 1)
 
                 ),
                 bslib::card(

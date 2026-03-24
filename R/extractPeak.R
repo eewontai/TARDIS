@@ -15,14 +15,14 @@ filterSingle <- function(spectra, dataOrigin, rt_range, mz_range) {
 
 #' Sum Intensities of Spectra
 #' @noRd
-.sum_intensities <- function(x, ...) {
-    if (nrow(x)) {
+.sum_intensities <- function(x, ...) { # ... allows the function to accept any number of additional, arbitrary arguments.
+    if (nrow(x)) {  # if data exist
         cbind(
-            mz = NA_real_,
-            intensity = sum(x[, "intensity"], na.rm = TRUE)
+            mz = NA_real_,  # mz does not matter anymore
+            intensity = sum(x[, "intensity"], na.rm = TRUE)   # sum the intensity column
         )
     } else {
-        cbind(mz = NA_real_, intensity = NA_real_)
+        cbind(mz = NA_real_, intensity = NA_real_)  # null
     }
 }
 
@@ -38,12 +38,14 @@ filterSingle <- function(spectra, dataOrigin, rt_range, mz_range) {
 #' @export
 extract_eic <- function(spectra) {
     sfs_agg <-
-        addProcessing(spectra, .sum_intensities)
+        addProcessing(spectra, .sum_intensities)  # add processing task, not run it yet
+    # addProcessing extracts only the peaks matrix of the spectra, containg 2 columns; mz and int.
+    # in 3d chromatogram, collapse the mz dimension, giving the eic (rt vs int).
     eic <-
-        cbind(
-            rtime(sfs_agg),
-            unlist(intensity(sfs_agg), use.names = FALSE)
-        )
+        cbind(  # run it
+            rtime(sfs_agg),  # retention time
+            unlist(intensity(sfs_agg), use.names = FALSE)  # intensity
+        ) # 2d matrix
     rownames(eic) <- NULL
     colnames(eic) <- c("rt", "int")
     eic

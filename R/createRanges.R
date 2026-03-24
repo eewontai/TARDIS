@@ -27,7 +27,7 @@ createRanges <- function(msData, dbData, ppm, rtdev) {
     # if an upper m/z boundary is lower than the minimum m/z range, set it to
     # the minimum m/z
     indexTemp <-
-        which(mzRanges[, 2] < min(spectra@backend@spectraData@listData$basePeakMZ))
+        which(mzRanges[, 2] < min(spectra@backend@spectraData@listData$basePeakMZ)) # minimum in target vs. actual mass spec data
     mzRanges[indexTemp, ] <-
         min(spectra@backend@spectraData@listData$basePeakMZ)
     # if a lower m/z boundary is higher than the max m/z, set it to the max m/z

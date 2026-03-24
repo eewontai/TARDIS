@@ -46,7 +46,8 @@ plotSamples <- function(compound_info, output_directory, rt_list, int_list,
         # Set up the plot with defined limits and labels
         plot(
             NULL,
-            xlim = range(c(unlist(rt_subset) / 60, unlist(x_subset) / 60)),
+            # range(): find min, max values of every element passed
+            xlim = range(c(unlist(rt_subset) / 60, unlist(x_subset) / 60)),  # Mass Spec data is often stored in seconds, but researchers prefer to read "Minutes" on a graph.
             ylim = range(c(unlist(int_subset), unlist(y_subset))),
             type = "n",
             main = paste("Component:", compound_info$ID, "- Part", i),
@@ -54,7 +55,7 @@ plotSamples <- function(compound_info, output_directory, rt_list, int_list,
             xlab = "Retention Time (minutes)",
             ylab = "Intensity"
         )
-        # Plot lines and points using mapply with colors
+        # Plot lines and points using mapply with colors (iterate through samples)
         mapply(
             function(rt, int, x, y, rt_int_color) {
                 lines(rt / 60, int, col = rt_int_color) # Line plot for rt and int
@@ -62,10 +63,12 @@ plotSamples <- function(compound_info, output_directory, rt_list, int_list,
                 b <- tail(x, 1) # right integration border
                 index_a <- which.min(abs(rt - a))
                 index_b <- which.min(abs(rt - b))
+                # polygon(): shading - finds the "Start" and "End" of the peak (the integration borders) 
+                # and colors the area under the curve.
                 polygon(
                     c(rt[index_a] / 60, rt[index_a:index_b] / 60, rt[index_b] / 60),
                     c(0, int[index_a:index_b], 0),
-                    col = adjustcolor(rt_int_color, alpha.f = 0.3),
+                    col = adjustcolor(rt_int_color, alpha.f = 0.3),  # transparent shading
                     border = NA
                 )
             }, rt_subset, int_subset, x_subset, y_subset,

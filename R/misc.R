@@ -14,6 +14,6 @@
     } else if (length(x) == 0) {
         ""
     } else {
-        paste(x, collapse = collapse)
+        paste(x, collapse = collapse)  # add the items in x into a single string, with ","s added in between
     }
 }
