@@ -1,3 +1,18 @@
+# TARDIS 2.0
+
+## Changes in 2.0.0b
+- Fixed 'missing value where TRUE/FALSE needed' crash in `tardisPeaks`.
+- Added robust handling for empty GUI inputs.
+
+## Changes in 2.0.0
+- Edited peakdet.R and peaks_with_tardis.R
+- Added functions for repetitive code
+- Fixed issue: detecting only one peak in two overlapping peaks
+- Implemented parallel processing in tardisPeaks function (the number of cores need to be specified in the user interface)
+- Fixed issue (still needs improvement): some peaks get cut off the sides of the plot window
+- Implemented baseline correction to smoothing method
+- Created newSmoothing.R: a new smoothing function (not implemented in main function)
+
 # TARDIS 1.0
 
 ## Changes in 1.1.0
