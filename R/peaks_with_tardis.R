@@ -930,8 +930,12 @@ tardisPeaks <-
       results <- results_samples  # 1 batch, same copy
       results <- standardize_results(results)
 
-      if (is.null(max_int_filter) == FALSE &&
-          max_int_filter != 0) {
+      # if (is.null(max_int_filter) == FALSE &&
+      #     max_int_filter != 0) {
+      #   results <- results[which(results$MaxInt >= max_int_filter), ]
+      # }
+      # Use is.numeric and !is.na to ensure the value is actually a number
+      if (is.numeric(max_int_filter) && !is.na(max_int_filter) && max_int_filter > 0) {
         results <- results[which(results$MaxInt >= max_int_filter), ]
       }
 
