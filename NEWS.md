@@ -1,5 +1,9 @@
 # TARDIS 2.0
 
+## Changes in 2.1.0b
+- Improved algorithm efficiency and parallel computing code
+- Achieved lower runtime in comparison to the original code by Pablo
+
 ## Changes in 2.0.0b
 - Fixed 'missing value where TRUE/FALSE needed' crash in `tardisPeaks`.
 - Added robust handling for empty GUI inputs.
