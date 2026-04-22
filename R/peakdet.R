@@ -14,6 +14,8 @@
 #'     no local minima were found 1 and `length(sign_change)` are returned.
 #'
 #' @author Pablo Vangeenderhuysen
+#' @contributor Eewon Tai
+
 #'
 #' @noRd
 # searches left border and right border given a peak index, when sign_change indicates a valley
@@ -121,8 +123,6 @@
 
     c(left = left_true, right = right_true)
 }
-
-
 
 #' @title Simple peak detection algorithm on chromatographic data
 #'

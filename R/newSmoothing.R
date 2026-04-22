@@ -8,6 +8,7 @@
 # Selection: The hump with the smallest difference is chosen.
 # Integration: Boundaries are set at X\% of that specific hump's height.
 
+#' @author Eewon Tai
 
 
 library(signal)

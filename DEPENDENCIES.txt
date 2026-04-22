@@ -1,0 +1,36 @@
+# Packages to install and import
+# if these packages don't exist, install them and load them
+if (!require("pbapply")) install.packages("pbapply")
+library(pbapply)
+if (!require("parallel")) install.packages("parallel")
+library(parallel)
+if (!require("tidyr")) install.packages("tidyr")
+library(tidyr)
+if (!require("dplyr")) install.packages("dplyr")
+library(dplyr)
+if (!require("xcms")) install.packages("xcms")
+library(xcms)
+if (!require("Spectra")) install.packages("Spectra")
+library(Spectra)
+
+# example code for running the program
+1. for use with the user interface
+install.packages("devtools")
+library(devtools)
+devtools::load_all("C:/Users/eetai/OneDrive - UGent/Desktop/limet_lab_materials/TARDIS-github")
+library(TARDIS)
+runTardis()
+
+2. for running inside R terminal
+#install.packages("devtools")
+library(devtools)
+# NEED TO INSTALL TO UPDATE WORKERS!!!
+devtools::install("C:/Users/eetai/OneDrive - UGent/Desktop/limet_lab_materials/TARDIS/TARDIS-edit")
+devtools::load_all("C:/Users/eetai/OneDrive - UGent/Desktop/limet_lab_materials/TARDIS/TARDIS-edit")
+start.time <- Sys.time()
+dbData <- createTargetList("C:/Users/eetai/OneDrive - UGent/Desktop/limet_lab_materials/TARDIS/TARDIS-run/sample_data_environage_beata_larger_20260408/TARDIS-polar-final-only-negative.xlsx", "+", "-", "negative", "Ion", c("ID", "name", "mz", "RT"))
+tardisPeaks("C:/Users/eetai/OneDrive - UGent/Desktop/limet_lab_materials/TARDIS/TARDIS-run/sample_data_environage_beata_larger_20260408/", NULL, dbData, 5, 18, c(50, 800), "negative", "C:/Users/eetai/OneDrive - UGent/Desktop/limet_lab_materials/TARDIS/TARDIS-run/results_parallelization_20260417/40_samples_screening/", TRUE, TRUE, TRUE, list(c(1,40)), "QC", "", TRUE, c("ID1576","ID1583","ID1750", "ID2206", "ID2208"), TRUE, TRUE, NULL, 6)
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+print(time.taken)
+
