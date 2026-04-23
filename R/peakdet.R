@@ -139,7 +139,7 @@
 #' The method:
 #'
 #' - identifies first all loacal maxima in `intensity`, then
-#' - removes local maxima with an intensity lower than 50% of the maximum
+#' - removes local maxima with an intensity lower than (ratio) of the maximum
 #'   intensity in `intensity` and finally
 #' - reports the above defined tentative peak apex with an retenton time
 #'   closest to the provided `targetRtime`.
@@ -166,7 +166,7 @@
 #'
 #' @export
 find_peak_points <- function(rtime = numeric(), intensity = numeric(),
-    targetRtime = numeric(), .check = TRUE, ratio = 0.5) {   # intensity values encompass the entire chromatogram
+    targetRtime = numeric(), .check = TRUE, ratio = 0.1) {   # intensity values encompass the entire chromatogram
     if (.check) {
         if (!length(intensity)) {
             stop("'intensity' is of length 0")
@@ -186,9 +186,9 @@ find_peak_points <- function(rtime = numeric(), intensity = numeric(),
     sign_changes <- c(FALSE, diff(di > 0) != 0, FALSE) # same length than ints
     peak_index <- which.max(intensity)
     all_local_max <- c(peak_index, which(diff(sign(di)) == -2) + 1)
-    ## Delete local maxima with an intensity lower than 50% max int
+    ## Delete local maxima with an intensity lower than (ratio) of max int
     local_max <- all_local_max[intensity[all_local_max] >
-        ratio * intensity[peak_index]]   # edit - user can select this parameter value (e.g. 0.5)##########
+        ratio * intensity[peak_index]]
     ## Find the local maximum closest to the targetRtime
     differences <- abs(rtime[local_max] - targetRtime)
     peak_index <- local_max[which.min(differences)]

@@ -84,7 +84,7 @@
 
 # function for retention time alignment
 # need to fix!
-rtAlignment <- function(minFraction, span, int_std, data_QC) {
+rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode = "mean") {
   # The PeakGroupsParam class allows to specify all settings for the retention time adjustment based on house keeping peak groups present in most samples.
   # minFraction: numeric(1) between 0 and 1 defining the minimum required fraction of samples in which peaks for the peak group were identified.
   # span: numeric(1) defining the degree of smoothing (if smooth = "loess"). This parameter is passed to the internal call to loess.
@@ -97,6 +97,7 @@ rtAlignment <- function(minFraction, span, int_std, data_QC) {
   data_QC <- adjustRtime(data_QC, param = param)
   # applyAdjustedRtime() replaces the original (raw) retention times with the newly calculated adjusted retention times.
   data_QC <- applyAdjustedRtime(data_QC)
+
   return (data_QC)
 }
 
@@ -108,7 +109,7 @@ smoothingSG <- function(p = 3,
                         rt_input,
                         mz_input,
                         smoothing,
-                        ratio = 0.5,
+                        ratio = 0.1,
                         baseline_correction = FALSE) {
   rt_range <- c(rt_input[1] - 30, rt_input[2] + 30)
   mz_range <- mz_input
@@ -187,7 +188,7 @@ smoothingSG <- function(p = 3,
     int[int < 0] <- 0
   }
   # edited - .find_peak_border
-  border <- find_peak_points(rt, smoothed, tr, .check = FALSE, ratio = ratio)  # edit - get ratio param from user
+  border <- find_peak_points(rt, smoothed, tr, .check = FALSE, ratio = ratio)
   # R cannot return multiple values, wrap them in a list is ok
   # return list of lists
   return(list(
@@ -501,7 +502,7 @@ tardisPeaks <-
               internal_standards_rt[j, ],
               internal_standards_mz[j, ],
               smoothing,
-              0.5,
+              0.1,
               TRUE
             )
             local_found_rt[i] <- res$rt[res$border[3L]]  # rt of peak
@@ -516,7 +517,8 @@ tardisPeaks <-
                                span = 0.5,
                                int_std,  # no transpose!; peakGroupsMatrix: matrix with the retention times of the peak groups.
                                # peakGroupsMatrix: Each column represents a sample, each row a feature/peak group.
-                               data_QC)
+                               data_QC,
+                               internal_standards_rt)
       }
       # Find all targets in x QC's
 
@@ -569,7 +571,7 @@ tardisPeaks <-
                              rtRanges[j, ],
                              mzRanges[j, ],
                              smoothing,
-                             0.5,
+                             0.1,
                              TRUE)
           rt <- if(is.null(res$rt)) NULL else res$rt
           int <- if(is.null(res$int)) NULL else res$int
@@ -726,7 +728,7 @@ tardisPeaks <-
                 internal_standards_rt[j, ],
                 internal_standards_mz[j, ],
                 smoothing,
-                0.5,
+                0.1,
                 TRUE
               )
               local_found_rt[i] <- if(is.null(res$border) || is.null(res$rt)) NULL else res$rt[res$border[3L]]  # rt of peak
@@ -809,7 +811,7 @@ tardisPeaks <-
                                  rtRanges[j, ],
                                  mzRanges[j, ],
                                  smoothing,
-                                 0.5,
+                                 0.1,
                                  TRUE)
               rt <- if(is.null(res$rt)) NULL else res$rt
               int <- if(is.null(res$int)) NULL else res$int
@@ -942,7 +944,7 @@ tardisPeaks <-
                                rtRanges[j, ],
                                mzRanges[j, ],
                                smoothing,
-                               0.5,
+                               0.1,
                                TRUE)
             rt <- if(is.null(res$rt)) NULL else res$rt
             int <- if(is.null(res$int)) NULL else res$int
