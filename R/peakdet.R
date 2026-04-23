@@ -20,108 +20,170 @@
 #' @noRd
 # searches left border and right border given a peak index, when sign_change indicates a valley
 # to address detection of only one (bigger) peak when two peaks overlap, increase limit of detection on the left and right side
+# .find_peak_border <- function(intensity, sign_change, index, min_dist = 2) {  # private function
+#     l <- length(sign_change)
+#
+#     left_true <- 1L
+#     right_true <- l
+#     if (index == 1) {
+#         index <- index + 1
+#     }
+#     ## Search for TRUE to the left --> if sign changes and at least doesn't
+#     ## change at the next point
+#     for (i in (index - 1):1) {
+#       if (sign_change[i] && (index - i) >= min_dist && intensity[i] < intensity[index]*0.1) {   # make 0.1 also a param for GUI!
+#           left_true <- i
+#           break
+#       }
+#     }
+#     if (index >= l) {
+#         index <- l - 1
+#     }
+#     ## Search for TRUE to the right
+#     for (i in (index + 1):l) {
+#       if (sign_change[i] && (i - index) >= min_dist && intensity[i] < intensity[index]*0.1) {
+#           right_true <- i
+#           break
+#       }
+#     }
+#
+#     # edit - issue where in two clearly separated consecutive peaks, the code detects both peaks
+#     # sign changes and 2nd derivatives do not accurately detect all valleys
+#     # 0. do border detection based on simple sign changes (done!)
+#     # 1. search regions where the intensity value is significantly small
+#     # 2. among those regions, if there is such region between the borders, change either
+#     # the left border or right border to the middle of the region
+#
+#     # intensity_ranked <- rank(intensity)
+#     # # > rank(c(10,30,20,50,40))
+#     # # [1] 1 3 2 5 4
+#     #
+#     # small_indices <- which(intensity < intensity[index] * 0.1)
+#
+#     # 1 = Small value (Baseline), 0 = High value (Peak)
+#     #is_small_binary <- as.integer(intensity < max(intensity) * 0.1)
+#
+#     #left_border <- left_true
+#     #right_border <- right_true
+#
+#     ##########
+#     # 1. Binary Dead Zone Detection
+#     is_small_binary <- as.integer(intensity < max(intensity, na.rm = TRUE) * 0.1)
+#
+#     # 2. Refine Left Border
+#     for (i in (index - 1):1) {
+#       if (!is.na(is_small_binary[i]) && is_small_binary[i] == 1) {
+#         left_first <- i
+#         left_last <- i # Initialize to handle single-point gaps
+#
+#         # Use parentheses for sequence (i-1):1
+#         if (i > 1) {
+#           for (j in (i - 1):1) {
+#             if (is_small_binary[j] == 1) {
+#               left_last <- j
+#             } else {
+#               break
+#             }
+#           }
+#         }
+#
+#         # If the gap doesn't hit the very start of the file, it's a valley gap
+#         if (left_last > 1) {
+#           left_true <- floor((left_first + left_last) / 2)
+#         }
+#         break
+#       }
+#     }
+#
+#     # 3. Refine Right Border
+#     for (i in (index + 1):l) {
+#       if (!is.na(is_small_binary[i]) && is_small_binary[i] == 1) {
+#         right_first <- i
+#         right_last <- i
+#
+#         if (i < l) {
+#           for (j in (i + 1):l) {
+#             if (is_small_binary[j] == 1) {
+#               right_last <- j
+#             } else {
+#               break
+#             }
+#           }
+#         }
+#
+#         # If the gap doesn't hit the very end of the file, it's a valley gap
+#         if (right_last < l) {
+#           right_true <- ceiling((right_first + right_last) / 2)
+#         }
+#         break
+#       }
+#     }
+#
+#     return(c(left = as.integer(left_true), right = as.integer(right_true)))
+#
+#     c(left = left_true, right = right_true)
+# }
+
+# edit - diptest
 .find_peak_border <- function(intensity, sign_change, index, min_dist = 2) {  # private function
+  dip_pval <- dip.test(intensity)$p.value
+  multi_modal <- dip_pval < 0.05  # TRUE or FALSE  # test 0.05
+
+  if(multi_modal == FALSE){  # uni-modal: integrate all as 1 peak
     l <- length(sign_change)
 
     left_true <- 1L
     right_true <- l
     if (index == 1) {
-        index <- index + 1
+      index <- index + 1
     }
     ## Search for TRUE to the left --> if sign changes and at least doesn't
     ## change at the next point
     for (i in (index - 1):1) {
       if (sign_change[i] && (index - i) >= min_dist && intensity[i] < intensity[index]*0.1) {   # make 0.1 also a param for GUI!
-          left_true <- i
-          break
+        left_true <- i
+        break
       }
     }
     if (index >= l) {
-        index <- l - 1
+      index <- l - 1
     }
     ## Search for TRUE to the right
     for (i in (index + 1):l) {
       if (sign_change[i] && (i - index) >= min_dist && intensity[i] < intensity[index]*0.1) {
-          right_true <- i
-          break
+        right_true <- i
+        break
       }
     }
-
-    # edit - issue where in two clearly separated consecutive peaks, the code detects both peaks
-    # sign changes and 2nd derivatives do not accurately detect all valleys
-    # 0. do border detection based on simple sign changes (done!)
-    # 1. search regions where the intensity value is significantly small
-    # 2. among those regions, if there is such region between the borders, change either
-    # the left border or right border to the middle of the region
-
-    # intensity_ranked <- rank(intensity)
-    # # > rank(c(10,30,20,50,40))
-    # # [1] 1 3 2 5 4
-    #
-    # small_indices <- which(intensity < intensity[index] * 0.1)
-
-    # 1 = Small value (Baseline), 0 = High value (Peak)
-    #is_small_binary <- as.integer(intensity < max(intensity) * 0.1)
-
-    #left_border <- left_true
-    #right_border <- right_true
-
-    ##########
-    # 1. Binary Dead Zone Detection
-    is_small_binary <- as.integer(intensity < max(intensity, na.rm = TRUE) * 0.1)
-
-    # 2. Refine Left Border
+    return (c(left = left_true, right = right_true))
+  }else{  # multi-modal: cut into one specific peak
+    # same as pablo's original code
+    l <- length(sign_change)
+    left_true <- 1L
+    right_true <- l
+    if (index == 1) {
+      index <- index + 1
+    }
+    ## Search for TRUE to the left --> if sign changes and at least doesn't
+    ## change at the next point
     for (i in (index - 1):1) {
-      if (!is.na(is_small_binary[i]) && is_small_binary[i] == 1) {
-        left_first <- i
-        left_last <- i # Initialize to handle single-point gaps
-
-        # Use parentheses for sequence (i-1):1
-        if (i > 1) {
-          for (j in (i - 1):1) {
-            if (is_small_binary[j] == 1) {
-              left_last <- j
-            } else {
-              break
-            }
-          }
-        }
-
-        # If the gap doesn't hit the very start of the file, it's a valley gap
-        if (left_last > 1) {
-          left_true <- floor((left_first + left_last) / 2)
-        }
+      if (sign_change[i] && (index - i) >= min_dist) {
+        left_true <- i
         break
       }
     }
-
-    # 3. Refine Right Border
+    if (index >= l) {
+      index <- l - 1
+    }
+    ## Search for TRUE to the right
     for (i in (index + 1):l) {
-      if (!is.na(is_small_binary[i]) && is_small_binary[i] == 1) {
-        right_first <- i
-        right_last <- i
-
-        if (i < l) {
-          for (j in (i + 1):l) {
-            if (is_small_binary[j] == 1) {
-              right_last <- j
-            } else {
-              break
-            }
-          }
-        }
-
-        # If the gap doesn't hit the very end of the file, it's a valley gap
-        if (right_last < l) {
-          right_true <- ceiling((right_first + right_last) / 2)
-        }
+      if (sign_change[i] && (i - index) >= min_dist) {
+        right_true <- i
         break
       }
     }
-
-    return(c(left = as.integer(left_true), right = as.integer(right_true)))
-
-    c(left = left_true, right = right_true)
+    return (c(left = left_true, right = right_true))
+  }
 }
 
 #' @title Simple peak detection algorithm on chromatographic data
