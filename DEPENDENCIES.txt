@@ -12,6 +12,8 @@ if (!require("xcms")) install.packages("xcms")
 library(xcms)
 if (!require("Spectra")) install.packages("Spectra")
 library(Spectra)
+if (!require("diptest")) install.packages("diptest") 
+library(diptest)
 
 # example code for running the program
 1. for use with the user interface
