@@ -47,7 +47,8 @@ ui <- bslib::page_navbar(
                   checkboxInput("rt_alignment", "RT alignment", value = TRUE),
                   checkboxInput("smoothing", "Smoothing", value = TRUE),
                   numericInput("max_int_filter", "Peak intensity filter:", value = NULL),
-                  numericInput("num_cores", "Number of Cores to use for Parallelization:", value = 1)
+                  numericInput("num_cores", "Number of Cores to use for Parallelization:", value = 1),
+                  selectInput("rt_mode", "Retention time alignment mode:", choices = c("mean","linear_interpolation"))
 
                 ),
                 bslib::card(

@@ -112,7 +112,8 @@ server <- function(input, output, session) {
       screening_mode = input$screening_mode,
       smoothing = input$smoothing,
       max_int_filter = input$max_int_filter,
-      num_cores = input$num_cores
+      num_cores = input$num_cores,
+      rt_mode = input$rt_mode
     )
 
     # after it's done, the loading spinner disappears and the button label changes

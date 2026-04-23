@@ -1,5 +1,9 @@
 # TARDIS 2.0
 
+## Changes in 2.3.0b
+- Fixed issue: retention time alignment
+- Retention time is aligned, then shifted to the correct retention time.
+
 ## Changes in 2.2.0b
 - Fixed issue: detecting only the highest peak
 - Ignore local maxima that is lower than 10% of the maximum peak intensity, not 50% (previous)

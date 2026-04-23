@@ -84,7 +84,7 @@
 
 # function for retention time alignment
 # need to fix!
-rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode = "mean") {
+rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode = rt_mode) {
   # The PeakGroupsParam class allows to specify all settings for the retention time adjustment based on house keeping peak groups present in most samples.
   # minFraction: numeric(1) between 0 and 1 defining the minimum required fraction of samples in which peaks for the peak group were identified.
   # span: numeric(1) defining the degree of smoothing (if smooth = "loess"). This parameter is passed to the internal call to loess.
@@ -98,6 +98,34 @@ rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode =
   # applyAdjustedRtime() replaces the original (raw) retention times with the newly calculated adjusted retention times.
   data_QC <- applyAdjustedRtime(data_QC)
 
+  #######################################
+  #adj_rt <- data_QC@spectra$rtime_adjusted  # 'does not exist' error
+  adj_rt <- rtime(data_QC@spectra)
+  ###
+  # ensure expected_rt is vector (per feature)
+  if (is.matrix(expected_rt)) {
+    expected_rt <- rowMeans(expected_rt, na.rm = TRUE)
+  }
+  #adj_rt_mean <- rowMeans(adj_rt, na.rm = TRUE)
+  if (mode == "mean") {
+    # shift per sample (column-wise)
+    rt_shift <- colMeans(int_std - expected_rt, na.rm = TRUE)  # expands expected_rt across columns
+    sample_idx <- spectraSampleIndex(data_QC)
+    rts_corrected <- adj_rt - rt_shift[sample_idx]
+    rtime(data_QC@spectra) <- rts_corrected
+  }
+
+  if (mode == "linear_interpolation") {
+    # for now, use lm, later might change to loess
+    # safer: use feature-level relationship
+    observed_rt <- rowMeans(int_std, na.rm = TRUE)
+    fit <- lm(expected_rt ~ observed_rt)
+    a <- coef(fit)[1]
+    b <- coef(fit)[2]
+    rt_corrected <- a + b * adj_rt
+    rtime(data_QC@spectra) <- rt_corrected
+  }
+  #############################################
   return (data_QC)
 }
 
@@ -381,7 +409,8 @@ tardisPeaks <-
            screening_mode = FALSE,
            smoothing = TRUE,
            max_int_filter = NULL,
-           num_cores = 1) { # edited GUI!
+           num_cores = 1,
+           rt_mode = "mean") { # edited GUI!
     # Setup the cluster (num_cores parameter)
     num_cores <- num_cores
     cl <- makeCluster(num_cores)
@@ -518,7 +547,8 @@ tardisPeaks <-
                                int_std,  # no transpose!; peakGroupsMatrix: matrix with the retention times of the peak groups.
                                # peakGroupsMatrix: Each column represents a sample, each row a feature/peak group.
                                data_QC,
-                               internal_standards_rt)
+                               internal_standards_rt,
+                               mode = rt_mode)
       }
       # Find all targets in x QC's
 
@@ -742,7 +772,9 @@ tardisPeaks <-
           data_QC <- rtAlignment(minFraction = 0.9,
                                  span = 0.5,
                                  int_std,
-                                 data_QC)
+                                 data_QC,
+                                 internal_standards_rt,
+                                 mode = rt_mode)
         }
         ## Now, we try and find ALL compounds in the QC samples and save their
         ## foundRT to search the compounds at that RT in the sample files
