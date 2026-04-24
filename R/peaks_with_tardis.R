@@ -83,7 +83,6 @@
 ## the following functions are for repetitive code in tardisPeaks function
 
 # function for retention time alignment
-# need to fix!
 rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode = rt_mode) {
   # The PeakGroupsParam class allows to specify all settings for the retention time adjustment based on house keeping peak groups present in most samples.
   # minFraction: numeric(1) between 0 and 1 defining the minimum required fraction of samples in which peaks for the peak group were identified.
@@ -104,14 +103,20 @@ rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode =
   ###
   # ensure expected_rt is vector (per feature)
   if (is.matrix(expected_rt)) {
-    expected_rt <- rowMeans(expected_rt, na.rm = TRUE)
+    expected_rt <- rowMeans(expected_rt)
   }
+  found_rt <- rowMeans(int_std)
+
   #adj_rt_mean <- rowMeans(adj_rt, na.rm = TRUE)
   if (mode == "mean") {
-    # shift per sample (column-wise)
-    rt_shift <- colMeans(int_std - expected_rt, na.rm = TRUE)  # expands expected_rt across columns
-    sample_idx <- spectraSampleIndex(data_QC)
-    rts_corrected <- adj_rt - rt_shift[sample_idx]
+    # shift per compound, same shift for all samples
+    rt_shift <- rowMeans(found_rt - expected_rt)  # vector
+    # for each internal standard compound, move the rt (rt_shift)
+    num_int_std <- dim(int_std)[1]
+    num_samples <- dim(int_std)[2]
+    #sample_idx <- spectraSampleIndex(data_QC)
+    rt_shift_rep <- rep(rt_shift, times = num_samples)
+    rts_corrected <- adj_rt - rt_shift_rep
     rtime(data_QC@spectra) <- rts_corrected
   }
 
@@ -119,7 +124,7 @@ rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode =
     # for now, use lm, later might change to loess
     # safer: use feature-level relationship
     observed_rt <- rowMeans(int_std, na.rm = TRUE)
-    fit <- lm(expected_rt ~ observed_rt)
+    fit <- lm(expected_rt ~ observed_rt)  # Y ~ X
     a <- coef(fit)[1]
     b <- coef(fit)[2]
     rt_corrected <- a + b * adj_rt
