@@ -103,20 +103,14 @@ rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode =
   ###
   # ensure expected_rt is vector (per feature)
   if (is.matrix(expected_rt)) {
-    expected_rt <- rowMeans(expected_rt)
+    expected_rt <- rowMeans(expected_rt, na.rm = TRUE)
   }
-  found_rt <- rowMeans(int_std)
-
   #adj_rt_mean <- rowMeans(adj_rt, na.rm = TRUE)
   if (mode == "mean") {
-    # shift per compound, same shift for all samples
-    rt_shift <- rowMeans(found_rt - expected_rt)  # vector
-    # for each internal standard compound, move the rt (rt_shift)
-    num_int_std <- dim(int_std)[1]
-    num_samples <- dim(int_std)[2]
-    #sample_idx <- spectraSampleIndex(data_QC)
-    rt_shift_rep <- rep(rt_shift, times = num_samples)
-    rts_corrected <- adj_rt - rt_shift_rep
+    # shift per sample (column-wise)
+    rt_shift <- colMeans(int_std - expected_rt, na.rm = TRUE)  # expands expected_rt across columns
+    sample_idx <- spectraSampleIndex(data_QC)
+    rts_corrected <- adj_rt - rt_shift[sample_idx]
     rtime(data_QC@spectra) <- rts_corrected
   }
 
@@ -124,7 +118,7 @@ rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode =
     # for now, use lm, later might change to loess
     # safer: use feature-level relationship
     observed_rt <- rowMeans(int_std, na.rm = TRUE)
-    fit <- lm(expected_rt ~ observed_rt)  # Y ~ X
+    fit <- lm(expected_rt ~ observed_rt)
     a <- coef(fit)[1]
     b <- coef(fit)[2]
     rt_corrected <- a + b * adj_rt
@@ -506,6 +500,7 @@ tardisPeaks <-
           #library(MsBackendSql)      # <-- ADD (provides MsBackendOfflineSql)
           #library(DBI)               # <-- ADD (SQLite connection dep)
           #library(RSQLite)           # <-- ADD
+          library(diptest)
         })
 
         # Export everything the workers need to know
@@ -733,6 +728,7 @@ tardisPeaks <-
             #library(MsBackendSql)      # <-- ADD (provides MsBackendOfflineSql)
             #library(DBI)               # <-- ADD (SQLite connection dep)
             #library(RSQLite)           # <-- ADD
+            library(diptest)
           })
 
           clusterExport(cl, varlist = c("smoothingSG",
