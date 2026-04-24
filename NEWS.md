@@ -1,5 +1,9 @@
 # TARDIS 2.0
 
+## Changes in 2.5.0
+- Fixed null handling by linear imputation of missing values
+- No null plots!
+
 ## Changes in 2.4.0.2
 - Fixed logic in rtAlignment() function (retention time alignment)
 

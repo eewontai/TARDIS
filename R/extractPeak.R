@@ -8,25 +8,25 @@
 #' @contributor Eewon Tai
 
 filterSingle <- function(spectra, dataOrigin, rt_range, mz_range) {
-    spectra <- spectra |>
-        filterDataOrigin(dataOrigin) |>
-        filterRt(rt_range) |>
-        filterMzRange(mz_range)
+  spectra <- spectra |>
+    filterDataOrigin(dataOrigin) |>
+    filterRt(rt_range) |>
+    filterMzRange(mz_range)
 
-    spectra
+  spectra
 }
 
 #' Sum Intensities of Spectra
 #' @noRd
 .sum_intensities <- function(x, ...) { # ... allows the function to accept any number of additional, arbitrary arguments.
-    if (nrow(x)) {  # if data exist
-        cbind(
-            mz = NA_real_,  # mz does not matter anymore
-            intensity = sum(x[, "intensity"], na.rm = TRUE)   # sum the intensity column
-        )
-    } else {
-        cbind(mz = NA_real_, intensity = NA_real_)  # null
-    }
+  if (nrow(x)) {  # if data exist
+    cbind(
+      mz = NA_real_,  # mz does not matter anymore
+      intensity = sum(x[, "intensity"], na.rm = TRUE)   # sum the intensity column
+    )
+  } else {
+    cbind(mz = NA_real_, intensity = NA_real_)  # null
+  }
 }
 
 #' @title Function to extract EIC from Spectra object
@@ -117,6 +117,15 @@ filterSingle_extractEIC <- function(spectra, dataOrigin, rt_range, mz_range) {
 
   ints <- intensity(spectra_filtered)
   rts  <- rtime(spectra_filtered)
+
+  # if there is NA, impute via Linear Interpolation
+  if (anyNA(ints)) {
+    ints <- imputeLinInterpol(ints)
+  }
+  # if there is NA, impute via Linear Interpolation
+  if (anyNA(rts)) {
+    rts <- imputeLinInterpol(rts)
+  }
 
   out <- cbind(
     rt  = rts,

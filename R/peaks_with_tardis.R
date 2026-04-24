@@ -156,6 +156,14 @@ smoothingSG <- function(p = 3,
   # edited!
   rt  <- eic[, 1L]
   int <- eic[, 2L]
+  # if there is NA, impute via Linear Interpolation
+  if (anyNA(rt)) {
+    rt <- imputeLinInterpol(rt)
+  }
+  # if there is NA, impute via Linear Interpolation
+  if (anyNA(int)) {
+    int <- imputeLinInterpol(int)
+  }
 
   for (k in 1:3) {
     idx <- rt >= rt_input[1] & rt <= rt_input[2]
@@ -226,7 +234,13 @@ smoothingSG <- function(p = 3,
 }
 # a function to check if a peak is valid
 checkValidPeak <- function(x, y, d, sample_name, int, rt, border) {
-
+  # if there is NA, impute via Linear Interpolation
+  if (anyNA(x)) {
+    x <- imputeLinInterpol(x)
+  }
+  if (anyNA(y)) {
+    y <- imputeLinInterpol(y)
+  }
   # Force consistent scalar outputs
   if (length(unique(y)) > 1 && !any(is.na(border))) {
 
@@ -313,68 +327,55 @@ dataHandling <- function(files, string, QC_pattern, polarity){
   return (data)
 }
 
-# for cleaning dataframes, assigning colnames
+# edited null handling (leading to null plots)
 standardize_results <- function(df) {
-
   required_cols <- c(
     "Component", "Sample", "AUC", "MaxInt",
     "SNR", "peak_cor", "foundRT", "pop",
     "ID", "NAME", "mz", "tr"
   )
 
-  # Add missing columns
+  # 1. Ensure it's a data frame
+  df <- as.data.frame(df)
+
+  # 2. Add missing columns with correct types to avoid logical NAs in numeric cols
   missing <- setdiff(required_cols, colnames(df))
   for (m in missing) df[[m]] <- NA
 
-  # Force atomic columns (CRUCIAL)
+  # 3. Handle list-columns safely without changing row count
   df[] <- lapply(df, function(x) {
-    if (is.list(x)) unlist(x) else x
+    if (is.list(x)) {
+      # Replace empty list elements with NA, take only 1st element of others
+      sapply(x, function(el) if (length(el) == 0) NA else el[1])  ##############################
+    } else {
+      x
+    }
   })
 
-  # Reorder
+  # 4. Strict selection and ordering (Avoids manual renaming later)
   df <- df[, required_cols, drop = FALSE]
 
   colnames(df) <- c("Component", "Sample", "AUC", "MaxInt",
                     "SNR", "peak_cor", "foundRT", "pop", "ID", "NAME", "mz", "tr") # Force the names here
+
   return(df)
 }
 
+# edited null handling (leading to null plots)
 safe_bind <- function(x) {
-  # 1. Remove NULLs and empty objects
+  # 1. Filter out non-dataframes or empty ones
   x <- Filter(function(df) is.data.frame(df) && nrow(df) > 0, x)
   if (length(x) == 0) return(NULL)
 
-  # 2. Clean list-columns and ensure DF structure
-  x <- lapply(x, function(df) {
-    # Ensure it's a data frame first
-    df <- as.data.frame(df, stringsAsFactors = FALSE)
+  # 2. Standardize each DF before binding
+  x <- lapply(x, standardize_results)
 
-    # Clean columns without losing the DF structure
-    for (col_name in colnames(df)) {
-      if (is.list(df[[col_name]])) {
-        # Replace list with first element or NA
-        df[[col_name]] <- sapply(df[[col_name]], function(item) {
-          if (length(item) == 0) return(NA)
-          return(as.character(unlist(item)[1]))
-        })
-      }
-    }
-    return(df)
-  })
-
-  # 3. Combine first, THEN rename
-  # bind_rows is smart—it will align columns by name automatically
+  # 3. Combine - since they are now identical in structure, this is safe
   out <- dplyr::bind_rows(x)
 
-  # 4. SAFETY CHECK: Only rename if column count matches
-  expected_names <- c("Component", "Sample", "AUC", "MaxInt",
-                      "SNR", "peak_cor", "foundRT", "pop", "ID", "NAME", "mz", "tr")
-
-  if (ncol(out) == length(expected_names)) {
-    colnames(out) <- expected_names
-  } else {
-    warning(paste("Column count mismatch! Expected 12, found", ncol(out)))
-  }
+  # 4. Final Type Conversion (Ensure numeric columns aren't characters)
+  numeric_cols <- c("AUC", "MaxInt", "SNR", "peak_cor", "foundRT", "mz", "tr")
+  out[numeric_cols] <- lapply(out[numeric_cols], as.numeric)
 
   rownames(out) <- NULL
   return(out)
@@ -488,7 +489,7 @@ tardisPeaks <-
           library(MsExperiment) #
           library(Spectra)
           library(signal) # sgolayfilt
-          library(xcms) #  # rt alignment - not inside pblapply
+          library(xcms) #  # rt alignment - not inside pblapply & imputing missing values (in filter-extract)
           library(pracma)   # Required for: trapz() (AUC calculation)
           library(BiocParallel) #
           #library(tidyr)
@@ -561,9 +562,9 @@ tardisPeaks <-
       global_mz_range2 <- range(mzRanges, na.rm = TRUE)
 
       spectra_QC <- spectra_QC |>
-                    filterDataOrigin(all_files) |>
-                    filterRt(global_rt_range2) |>
-                    filterMzRange(global_mz_range2)
+        filterDataOrigin(all_files) |>
+        filterRt(global_rt_range2) |>
+        filterMzRange(global_mz_range2)
 
       clusterExport(cl, varlist = c("smoothingSG",
                                     "filterSingle_extractEIC",
