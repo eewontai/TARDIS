@@ -1,5 +1,8 @@
 # TARDIS 2.0
 
+## Changes in 2.4.0.2
+- Fixed logic in rtAlignment() function (retention time alignment)
+
 ## Changes in 2.4.0b
 - Fixed issue: detecting overlapping peaks
 - Code detects unimodal/multimodal distribution and detects peak accordingly
