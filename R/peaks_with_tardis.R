@@ -97,10 +97,7 @@ rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode =
   # applyAdjustedRtime() replaces the original (raw) retention times with the newly calculated adjusted retention times.
   data_QC <- applyAdjustedRtime(data_QC)
 
-  #######################################
-  #adj_rt <- data_QC@spectra$rtime_adjusted  # 'does not exist' error
   adj_rt <- rtime(data_QC@spectra)
-  ###
   # ensure expected_rt is vector (per feature)
   if (is.matrix(expected_rt)) {
     expected_rt <- rowMeans(expected_rt, na.rm = TRUE)
@@ -124,14 +121,12 @@ rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode =
     rt_corrected <- a + b * adj_rt
     rtime(data_QC@spectra) <- rt_corrected
   }
-  #############################################
   return (data_QC)
 }
 
-# function for Savitsky-Golay smoothing
 smoothingSG <- function(p = 3,
-                        tr,  		# ex. tr = dbData$tr[j]
-                        all_files_i, 	# call function using all_files[i]
+                        tr,
+                        all_files_i,
                         spectra_QC,
                         rt_input,
                         mz_input,
@@ -139,13 +134,19 @@ smoothingSG <- function(p = 3,
                         ratio = 0.1,
                         baseline_correction = FALSE,
                         pval_cutoff = 0.05) {
+
+  # --- safety for parallel ---
+  if (is.null(pval_cutoff) || length(pval_cutoff) == 0) {
+    pval_cutoff <- 0.05
+  }
+
   rt_range <- c(rt_input[1] - 30, rt_input[2] + 30)
   mz_range <- mz_input
 
   eic <- filterSingle_extractEIC(spectra_QC, all_files_i, rt_range, mz_range)
 
   length_error <- rt_input[2] - rt_input[1] + 1
-  # EMERGENCY EXIT: If no data was found after filtering
+
   if (is.null(eic) || nrow(eic) == 0) {
     return(list(
       rt = rep(NA, length_error),
@@ -154,72 +155,72 @@ smoothingSG <- function(p = 3,
     ))
   }
 
-  # edited!
   rt  <- eic[, 1L]
   int <- eic[, 2L]
-  # if there is NA, impute via Linear Interpolation
-  # if (anyNA(rt)) {
-  #   rt <- imputeLinInterpol(rt)
-  # }
-  # # if there is NA, impute via Linear Interpolation
-  # if (anyNA(int)) {
-  #   int <- imputeLinInterpol(int)
-  # }
 
-  #Baseline correction: change int values
-  # if (baseline_correction == TRUE && is.null(int) == FALSE){
-  #   int <- int - rep(min(int), length(int))
-  # }
-  if (baseline_correction == TRUE && !is.null(int) && any(!is.na(int))) {
-    int <- int - min(int, na.rm = TRUE)  # ignore na values
+  # --- baseline correction ---
+  if (baseline_correction && any(!is.na(int))) {
+    int <- int - min(int, na.rm = TRUE)
   }
-  ##################
-  # NA intensities are set to zero --> should change this so only NA's
-  # at the edges get changed to zero, so the ones IN the peak will be
-  # imputed
+
+  # --- NA handling ---
+  if (length(int) == 0) {
+    return(list(
+      rt = rep(NA, length_error),
+      int = rep(NA, length_error),
+      border = rep(NA, 3)
+    ))
+  }
+
   na_ind <- is.na(int)
 
   if (any(na_ind)) {
-    # find NA regions that are more than 5 in length, converts them into zeros
+
+    # --- long NA gaps -> zero ---
     r <- rle(na_ind)
     ends <- cumsum(r$lengths)
     starts <- ends - r$lengths + 1
 
-    # find NA runs longer than 5
     long_na_runs <- which(r$values & r$lengths > 5)
 
-    # set those regions to zero
     for (i in long_na_runs) {
       int[starts[i]:ends[i]] <- 0
     }
-    # interpolate NA in peaks, convert NA outside to zero
-    # Find first and last non-NA
-    first <- which(!na_ind)[1]
-    last  <- tail(which(!na_ind), 1)
 
-    int_peak <- int[first:last]
+    # recompute NA mask AFTER modification
+    na_ind <- is.na(int)
+    non_na_idx <- which(!na_ind)
 
-    # interpolate internal NA
-    if (anyNA(int_peak)) {
-      int_peak <- imputeLinInterpol(int_peak)
+    # --- all NA case ---
+    if (length(non_na_idx) == 0) {
+      int <- rep(0, length(int))
+    } else {
+      first <- non_na_idx[1]
+      last  <- tail(non_na_idx, 1)
+
+      int_peak <- int[first:last]
+
+      # interpolate internal NA only
+      if (anyNA(int_peak)) {
+        int_peak <- imputeLinInterpol(int_peak)
+      }
+
+      int <- c(
+        rep(0, first - 1),
+        int_peak,
+        rep(0, length(int) - last)
+      )
     }
-
-    # rebuild vector correctly
-    int <- c(
-      rep(0, first - 1),
-      int_peak,
-      rep(0, length(int) - last)
-    )
   }
-  ###############
-  #######################ADDED#########################
-  # initialize before loop
+
+  # --- adaptive RT window ---
   rt_sub <- rt
   int_sub <- int
 
   for (k in 1:3) {
     idx <- rt >= rt_input[1] & rt <= rt_input[2]
-    if (!any(idx)) break
+
+    if (length(idx) == 0 || !any(idx)) break
 
     rt_sub <- rt[idx]
     int_sub <- int[idx]
@@ -229,95 +230,62 @@ smoothingSG <- function(p = 3,
     max_val <- max(int_sub, na.rm = TRUE)
     threshold <- max_val * 0.1
 
-    is_cutoff_left  <- int_sub[1] > threshold
-    is_cutoff_right <- int_sub[length(int_sub)] > threshold
+    left  <- !is.na(int_sub[1]) && int_sub[1] > threshold
+    right <- !is.na(int_sub[length(int_sub)]) && int_sub[length(int_sub)] > threshold
 
-    if (!is_cutoff_left && !is_cutoff_right) break
+    if (!left && !right) break
 
-    if (is_cutoff_left)  rt_input[1] <- rt_input[1] - 10
-    if (is_cutoff_right) rt_input[2] <- rt_input[2] + 10
+    if (left)  rt_input[1] <- rt_input[1] - 10
+    if (right) rt_input[2] <- rt_input[2] + 10
   }
 
-  rt <- rt_sub
+  rt  <- rt_sub
   int <- int_sub
 
-  # # if there is NA, impute via Linear Interpolation
-  # if (anyNA(int)) {
-  #   int <- imputeLinInterpol(int)
-  # }
-  ######################################
-  #
-  # for (k in 1:3) {
-  #   idx <- rt >= rt_input[1] & rt <= rt_input[2]
-  #   if (!any(idx)) break
-  #
-  #   rt_sub <- rt[idx]
-  #   int_sub <- int[idx]
-  #
-  #   if (length(int_sub) == 0 || all(is.na(int_sub))) break  # add this
-  #
-  #
-  #   max_val <- max(int_sub, na.rm = TRUE)
-  #   threshold <- max_val * 0.1
-  #
-  #   is_cutoff_left  <- !is.na(int_sub[1]) && int_sub[1] > threshold
-  #   is_cutoff_right <- !is.na(int_sub[length(int_sub)]) && int_sub[length(int_sub)] > threshold
-  #
-  #   if (!is_cutoff_left && !is_cutoff_right) break
-  #
-  #   if (is_cutoff_left)  rt_input[1] <- rt_input[1] - 10
-  #   if (is_cutoff_right) rt_input[2] <- rt_input[2] + 10
-  # }
-  #
-  # rt <- rt_sub
-  # int <- int_sub
-  #
-  #
-  #
-
-  #int[which(is.na(int))] <- 0
-  # if intensity length is under 7, lower filter length
-  # to odd number <= intensity length
-  if (length(int) < 7) {
-    if (length(int) %% 2 == 0) {
-      fl <- length(int) - 1
-    } else {
-      fl <- length(int)
-    }
+  # --- SG filter length ---
+  if (length(int) < 3) {
+    smoothed <- int  # too short to filter safely
   } else {
-    fl <- 7
+    fl <- if (length(int) < 7) {
+      if (length(int) %% 2 == 0) length(int) - 1 else length(int)
+    } else {
+      7
+    }
+
+    if (fl <= p) {
+      fl <- p + if (p %% 2 == 0) 1 else 2
+    }
+
+    # guard again
+    if (fl > length(int)) {
+      smoothed <- int
+    } else {
+      smoothed <- sgolayfilt(int, p = p, n = fl)
+    }
   }
 
-  # Savitzky-Golay requirement: n must be > p (else it will crash)
-  if (fl <= p) fl <- p + (if (p %% 2 == 0) 1 else 2)
-
-  smoothed <- sgolayfilt(int, p = p, n = fl)
-
-  if (smoothing == TRUE) {
+  if (smoothing) {
     int <- smoothed
     int[int < 0] <- 0
   }
-  # edited - .find_peak_border
-  border <- find_peak_points(rt, smoothed, tr, .check = FALSE, ratio = ratio, pval_cutoff = pval_cutoff)
-  ###################
-  # no change
-  # # if there is NA, impute via Linear Interpolation
-  # if (anyNA(rt)) {
-  #   rt <- imputeLinInterpol(rt)
-  # }
-  # # if there is NA, impute via Linear Interpolation
-  # if (anyNA(int)) {
-  #   int <- imputeLinInterpol(int)
-  # }
-  ###################
-  # R cannot return multiple values, wrap them in a list is ok
-  # return list of lists
+
+  # --- peak detection ---
+  border <- tryCatch({
+    find_peak_points(rt, smoothed, tr,
+                     .check = FALSE,
+                     ratio = ratio,
+                     pval_cutoff = pval_cutoff)
+  }, error = function(e) {
+    rep(NA, 3)
+  })
+
   return(list(
-    rt = if (is.null(rt)) rep(NA, length_error) else rt,
-    int = if (is.null(int)) rep(NA, length_error) else int,
-    border = if (is.null(border)) rep(NA, 3) else border
+    rt = if (length(rt) == 0) rep(NA, length_error) else rt,
+    int = if (length(int) == 0) rep(NA, length_error) else int,
+    border = border
   ))
 }
+
 # a function to check if a peak is valid
 checkValidPeak <- function(x, y, d, sample_name, int, rt, border) {
   # if there is NA, impute via Linear Interpolation
@@ -432,7 +400,7 @@ standardize_results <- function(df) {
   df[] <- lapply(df, function(x) {
     if (is.list(x)) {
       # Replace empty list elements with NA, take only 1st element of others
-      sapply(x, function(el) if (length(el) == 0) NA else el[1])  ##############################
+      sapply(x, function(el) if (length(el) == 0) NA else el[1])
     } else {
       x
     }
@@ -598,7 +566,7 @@ tardisPeaks <-
         clusterExport(cl, varlist = c("sample_names", "dbData_std", "all_files",
                                       "spectra_QC",
                                       "internal_standards_rt",
-                                      "internal_standards_mz", "smoothing"), envir = environment())  # find variables/functions anywhere in the code
+                                      "internal_standards_mz", "smoothing", "pval_cutoff"), envir = environment())  # find variables/functions anywhere in the code
 
         ###########################
         # disable progress bar - defaults to parLapply!
@@ -663,7 +631,7 @@ tardisPeaks <-
                                     "spectra_QC",
                                     "smoothing",
                                     "rtRanges", "mzRanges", "diagnostic_plots",
-                                    "output_directory"), envir = environment()) # find the variables in this function, not the global environment!
+                                    "output_directory", "pval_cutoff"), envir = environment()) # find the variables in this function, not the global environment!
 
       ##################################################################
       # load balancing
@@ -728,6 +696,7 @@ tardisPeaks <-
             sample_names
           )
         }
+
         return(safe_bind(results_screening_row))
       }, cl=cl)
 
@@ -828,7 +797,7 @@ tardisPeaks <-
                                         "spectra_QC", "smoothing",
                                         "internal_standards_rt",
                                         "internal_standards_mz", "sample_names_QC",
-                                        "spectra_QC",  "smoothing"), envir = environment()) # find the variables in this function & the global environment!
+                                        "spectra_QC",  "smoothing", "pval_cutoff"), envir = environment()) # find the variables in this function & the global environment!
           ############################
           # disable progress bar - defaults to parLapply!
           pboptions(type = "none")
@@ -914,7 +883,7 @@ tardisPeaks <-
           clusterExport(cl, varlist = c("sample_names_QC", "dbData", "all_files",
                                         "spectra_QC", "smoothing",
                                         "rtRanges", "mzRanges", "plots_QC",
-                                        "output_directory", "batchnr"), envir = environment()) # find the variables in this function, not the global environment!
+                                        "output_directory", "batchnr", "pval_cutoff"), envir = environment()) # find the variables in this function, not the global environment!
 
           ####
           #splitpb(dim(rtRanges)[1] * length(sample_names_QC), dim(rtRanges)[1])
@@ -1048,7 +1017,7 @@ tardisPeaks <-
                                       "spectra", "smoothing",
                                       "rtRanges", "mzRanges",
                                       "plots_samples", "diagnostic_plots",
-                                      "output_directory", "batchnr"), envir = environment()) # find the variables in this function, not the global environment!
+                                      "output_directory", "batchnr", "pval_cutoff"), envir = environment()) # find the variables in this function, not the global environment!
 
         ####
         #splitpb(dim(rtRanges)[1] * length(sample_names_batch), dim(rtRanges)[1])

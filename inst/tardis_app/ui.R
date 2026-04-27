@@ -40,7 +40,7 @@ ui <- bslib::page_navbar(
                   textInput("QC_pattern", "QC pattern:", value = "QC")
                 ),
                 bslib::card(
-                  checkboxInput("diagnostic_plots", "Generate diagnostic plots", value = TRUE),
+                  checkboxInput("diagnostic_plots", "Generate diagnostic plots", value = TRUE)
                   checkboxInput("plot_samples", "Generate sample plots", value = FALSE),
                   checkboxInput("plot_QCs", "Generate QC plots", value = FALSE),
                   checkboxInput("screening_mode", "Screening mode", value = FALSE),
