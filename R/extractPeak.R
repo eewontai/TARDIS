@@ -129,6 +129,7 @@ filterSingle_extractEIC <- function(spectra, dataOrigin, rt_range, mz_range) {
 
   out <- cbind(
     rt  = rts,
+    # na.rm = TRUE ignores NA (treats it as 0)
     int = vapply(ints, function(x) if (length(x)) sum(x, na.rm = TRUE) else NA_real_, numeric(1))
   )
   out

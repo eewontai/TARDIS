@@ -125,9 +125,9 @@
 # }
 
 # edit - diptest
-.find_peak_border <- function(intensity, sign_change, index, min_dist = 2) {  # private function
+.find_peak_border <- function(intensity, sign_change, index, min_dist = 2, pval_cutoff = 0.05) {  # private function
   dip_pval <- dip.test(intensity)$p.value
-  multi_modal <- dip_pval < 0.05  # TRUE or FALSE  # test 0.05
+  multi_modal <- dip_pval < pval_cutoff  # TRUE or FALSE  # test 0.05
 
   if(multi_modal == FALSE){  # uni-modal: integrate all as 1 peak
     l <- length(sign_change)
@@ -228,7 +228,7 @@
 #'
 #' @export
 find_peak_points <- function(rtime = numeric(), intensity = numeric(),
-    targetRtime = numeric(), .check = TRUE, ratio = 0.1) {   # intensity values encompass the entire chromatogram
+    targetRtime = numeric(), .check = TRUE, ratio = 0.1, pval_cutoff = 0.05) {   # intensity values encompass the entire chromatogram
     if (.check) {
         if (!length(intensity)) {
             stop("'intensity' is of length 0")
@@ -258,7 +258,7 @@ find_peak_points <- function(rtime = numeric(), intensity = numeric(),
         peak_index <- which.min(abs(rtime - targetRtime))
     }
     ## Find the left and right border points from the peak
-    border <- .find_peak_border(intensity, sign_changes, peak_index, min_dist = 2)
+    border <- .find_peak_border(intensity, sign_changes, peak_index, min_dist = 2, pval_cutoff = pval_cutoff)
     c(border, peak_index = peak_index)
 }
 

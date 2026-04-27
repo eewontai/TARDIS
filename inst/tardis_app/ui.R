@@ -48,8 +48,8 @@ ui <- bslib::page_navbar(
                   checkboxInput("smoothing", "Smoothing", value = TRUE),
                   numericInput("max_int_filter", "Peak intensity filter:", value = NULL),
                   numericInput("num_cores", "Number of Cores to use for Parallelization:", value = 1),
-                  selectInput("rt_mode", "Retention time alignment mode:", choices = c("mean","linear_interpolation"))
-
+                  selectInput("rt_mode", "Retention time alignment mode:", choices = c("mean","linear_interpolation")),
+                  numericInput("pval_cutoff", "P-value cutoff for diptest:", value = 0.05)
                 ),
                 bslib::card(
                   actionButton("run_tardis_peaks", "Run TARDIS"),

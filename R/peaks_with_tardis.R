@@ -128,7 +128,7 @@ rtAlignment <- function(minFraction, span, int_std, data_QC, expected_rt, mode =
   return (data_QC)
 }
 
-# function for Savitsky-Golay smoothing (got from _3rd.r)
+# function for Savitsky-Golay smoothing
 smoothingSG <- function(p = 3,
                         tr,  		# ex. tr = dbData$tr[j]
                         all_files_i, 	# call function using all_files[i]
@@ -137,7 +137,8 @@ smoothingSG <- function(p = 3,
                         mz_input,
                         smoothing,
                         ratio = 0.1,
-                        baseline_correction = FALSE) {
+                        baseline_correction = FALSE,
+                        pval_cutoff = 0.05) {
   rt_range <- c(rt_input[1] - 30, rt_input[2] + 30)
   mz_range <- mz_input
 
@@ -157,13 +158,64 @@ smoothingSG <- function(p = 3,
   rt  <- eic[, 1L]
   int <- eic[, 2L]
   # if there is NA, impute via Linear Interpolation
-  if (anyNA(rt)) {
-    rt <- imputeLinInterpol(rt)
+  # if (anyNA(rt)) {
+  #   rt <- imputeLinInterpol(rt)
+  # }
+  # # if there is NA, impute via Linear Interpolation
+  # if (anyNA(int)) {
+  #   int <- imputeLinInterpol(int)
+  # }
+
+  #Baseline correction: change int values
+  # if (baseline_correction == TRUE && is.null(int) == FALSE){
+  #   int <- int - rep(min(int), length(int))
+  # }
+  if (baseline_correction == TRUE && !is.null(int) && any(!is.na(int))) {
+    int <- int - min(int, na.rm = TRUE)  # ignore na values
   }
-  # if there is NA, impute via Linear Interpolation
-  if (anyNA(int)) {
-    int <- imputeLinInterpol(int)
+  ##################
+  # NA intensities are set to zero --> should change this so only NA's
+  # at the edges get changed to zero, so the ones IN the peak will be
+  # imputed
+  na_ind <- is.na(int)
+
+  if (any(na_ind)) {
+    # find NA regions that are more than 5 in length, converts them into zeros
+    r <- rle(na_ind)
+    ends <- cumsum(r$lengths)
+    starts <- ends - r$lengths + 1
+
+    # find NA runs longer than 5
+    long_na_runs <- which(r$values & r$lengths > 5)
+
+    # set those regions to zero
+    for (i in long_na_runs) {
+      int[starts[i]:ends[i]] <- 0
+    }
+    # interpolate NA in peaks, convert NA outside to zero
+    # Find first and last non-NA
+    first <- which(!na_ind)[1]
+    last  <- tail(which(!na_ind), 1)
+
+    int_peak <- int[first:last]
+
+    # interpolate internal NA
+    if (anyNA(int_peak)) {
+      int_peak <- imputeLinInterpol(int_peak)
+    }
+
+    # rebuild vector correctly
+    int <- c(
+      rep(0, first - 1),
+      int_peak,
+      rep(0, length(int) - last)
+    )
   }
+  ###############
+  #######################ADDED#########################
+  # initialize before loop
+  rt_sub <- rt
+  int_sub <- int
 
   for (k in 1:3) {
     idx <- rt >= rt_input[1] & rt <= rt_input[2]
@@ -172,14 +224,13 @@ smoothingSG <- function(p = 3,
     rt_sub <- rt[idx]
     int_sub <- int[idx]
 
-    if (length(int_sub) == 0 || all(is.na(int_sub))) break  # add this
-
+    if (length(int_sub) == 0 || all(is.na(int_sub))) break
 
     max_val <- max(int_sub, na.rm = TRUE)
     threshold <- max_val * 0.1
 
-    is_cutoff_left  <- !is.na(int_sub[1]) && int_sub[1] > threshold
-    is_cutoff_right <- !is.na(int_sub[length(int_sub)]) && int_sub[length(int_sub)] > threshold
+    is_cutoff_left  <- int_sub[1] > threshold
+    is_cutoff_right <- int_sub[length(int_sub)] > threshold
 
     if (!is_cutoff_left && !is_cutoff_right) break
 
@@ -190,17 +241,41 @@ smoothingSG <- function(p = 3,
   rt <- rt_sub
   int <- int_sub
 
+  # # if there is NA, impute via Linear Interpolation
+  # if (anyNA(int)) {
+  #   int <- imputeLinInterpol(int)
+  # }
+  ######################################
+  #
+  # for (k in 1:3) {
+  #   idx <- rt >= rt_input[1] & rt <= rt_input[2]
+  #   if (!any(idx)) break
+  #
+  #   rt_sub <- rt[idx]
+  #   int_sub <- int[idx]
+  #
+  #   if (length(int_sub) == 0 || all(is.na(int_sub))) break  # add this
+  #
+  #
+  #   max_val <- max(int_sub, na.rm = TRUE)
+  #   threshold <- max_val * 0.1
+  #
+  #   is_cutoff_left  <- !is.na(int_sub[1]) && int_sub[1] > threshold
+  #   is_cutoff_right <- !is.na(int_sub[length(int_sub)]) && int_sub[length(int_sub)] > threshold
+  #
+  #   if (!is_cutoff_left && !is_cutoff_right) break
+  #
+  #   if (is_cutoff_left)  rt_input[1] <- rt_input[1] - 10
+  #   if (is_cutoff_right) rt_input[2] <- rt_input[2] + 10
+  # }
+  #
+  # rt <- rt_sub
+  # int <- int_sub
+  #
+  #
+  #
 
-
-  #Baseline correction: change int values
-  if (baseline_correction == TRUE && is.null(int) == FALSE){
-    int <- int - rep(min(int), length(int))
-  }
-
-  # NA intensities are set to zero --> should change this so only NA's
-  # at the edges get changed to zero, so the ones IN the peak will be
-  # imputed
-  int[which(is.na(int))] <- 0
+  #int[which(is.na(int))] <- 0
   # if intensity length is under 7, lower filter length
   # to odd number <= intensity length
   if (length(int) < 7) {
@@ -223,7 +298,18 @@ smoothingSG <- function(p = 3,
     int[int < 0] <- 0
   }
   # edited - .find_peak_border
-  border <- find_peak_points(rt, smoothed, tr, .check = FALSE, ratio = ratio)
+  border <- find_peak_points(rt, smoothed, tr, .check = FALSE, ratio = ratio, pval_cutoff = pval_cutoff)
+  ###################
+  # no change
+  # # if there is NA, impute via Linear Interpolation
+  # if (anyNA(rt)) {
+  #   rt <- imputeLinInterpol(rt)
+  # }
+  # # if there is NA, impute via Linear Interpolation
+  # if (anyNA(int)) {
+  #   int <- imputeLinInterpol(int)
+  # }
+  ###################
   # R cannot return multiple values, wrap them in a list is ok
   # return list of lists
   return(list(
@@ -410,7 +496,8 @@ tardisPeaks <-
            smoothing = TRUE,
            max_int_filter = NULL,
            num_cores = 1,
-           rt_mode = "mean") { # edited GUI!
+           rt_mode = "mean",
+           pval_cutoff = 0.05) { # edited GUI!
     # Setup the cluster (num_cores parameter)
     num_cores <- num_cores
     cl <- makeCluster(num_cores)
@@ -533,7 +620,8 @@ tardisPeaks <-
               internal_standards_mz[j, ],
               smoothing,
               0.1,
-              TRUE
+              TRUE,
+              pval_cutoff
             )
             local_found_rt[i] <- res$rt[res$border[3L]]  # rt of peak
           }
@@ -603,7 +691,8 @@ tardisPeaks <-
                              mzRanges[j, ],
                              smoothing,
                              0.1,
-                             TRUE)
+                             TRUE,
+                             pval_cutoff)
           rt <- if(is.null(res$rt)) NULL else res$rt
           int <- if(is.null(res$int)) NULL else res$int
           border <- if(is.null(res$border)) NULL else res$border
@@ -761,7 +850,8 @@ tardisPeaks <-
                 internal_standards_mz[j, ],
                 smoothing,
                 0.1,
-                TRUE
+                TRUE,
+                pval_cutoff
               )
               local_found_rt[i] <- if(is.null(res$border) || is.null(res$rt)) NULL else res$rt[res$border[3L]]  # rt of peak
             }
@@ -846,7 +936,8 @@ tardisPeaks <-
                                  mzRanges[j, ],
                                  smoothing,
                                  0.1,
-                                 TRUE)
+                                 TRUE,
+                                 pval_cutoff)
               rt <- if(is.null(res$rt)) NULL else res$rt
               int <- if(is.null(res$int)) NULL else res$int
               border <- if(is.null(res$border)) NULL else res$border
@@ -979,7 +1070,8 @@ tardisPeaks <-
                                mzRanges[j, ],
                                smoothing,
                                0.1,
-                               TRUE)
+                               TRUE,
+                               pval_cutoff)
             rt <- if(is.null(res$rt)) NULL else res$rt
             int <- if(is.null(res$int)) NULL else res$int
             border <- if(is.null(res$border)) NULL else res$border

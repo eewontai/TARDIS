@@ -1,5 +1,9 @@
 # TARDIS 2.0
 
+## Changes in 2.6.0
+- Fixed plotting issues (null values handled wrongly by previous imputation step)
+- Added pval_cutoff parameter to GUI and functions
+
 ## Changes in 2.5.0
 - Fixed null handling by linear imputation of missing values
 - No null plots!
