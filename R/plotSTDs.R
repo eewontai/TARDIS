@@ -25,16 +25,17 @@ plotSTD <-
            x_list,
            y_list,
            batchnr,
-           sample_names) {
+           sample_names,
+           STD_pattern) {
     # if there is STD
     ## Define colors for rt,int pairs and x,y pairs
-    if (length(grep("STD", sample_names)) != 0) {
+    if (length(grep(STD_pattern, sample_names)) != 0) {
       # Select only the  STD's for plotting
-      rt_list <- rt_list[grep("STD", sample_names)]
-      int_list <- int_list[grep("STD", sample_names)]
-      x_list <- x_list[grep("STD", sample_names)]
-      y_list <- y_list[grep("STD", sample_names)]
-      sample_names <- sample_names[grep("STD", sample_names)]
+      rt_list <- rt_list[grep(STD_pattern, sample_names)]
+      int_list <- int_list[grep(STD_pattern, sample_names)]
+      x_list <- x_list[grep(STD_pattern, sample_names)]
+      y_list <- y_list[grep(STD_pattern, sample_names)]
+      sample_names <- sample_names[grep(STD_pattern, sample_names)]
       c25 <- brewer.pal(n = length(rt_list), "Set1")
       plot_title <- paste("Component:", compound_info$ID)
       sub <- compound_info$NAME
@@ -101,7 +102,7 @@ plotSTD <-
         lty = c(1, 1, 1, 1),
         pch = c(1, 16, 1, 16),
         cex = 0.7,
-        title = "STD",
+        title = STD_pattern,
         title.cex = 0.8
       )
       dev.off()
@@ -111,15 +112,15 @@ plotSTD <-
       for (i in 1:num_chunks) {  # for each chunk, create one plot and save it
         start_index <- (i - 1) * chunk_size + 1
         end_index <- min(i * chunk_size, length(rt_list))
-        
+
         rt_list_chunk <- rt_list[start_index:end_index]
         int_list_chunk <- int_list[start_index:end_index]
         x_list_chunk <- x_list[start_index:end_index]
         y_list_chunk <- y_list[start_index:end_index]
-        
+
         c25 <- RColorBrewer::brewer.pal(n = length(rt_list_chunk), "Set1")
-        
-        
+
+
         plot_title <- paste("Component:", compound_info$ID)
         sub <- compound_info$NAME
         plot_file <-
@@ -188,7 +189,7 @@ plotSTD <-
           lty = c(1, 1, 1, 1),
           pch = c(1, 16, 1, 16),
           cex = 0.7,
-          title = "STD",
+          title = STD_pattern,
           title.cex = 0.8
         )
         dev.off()

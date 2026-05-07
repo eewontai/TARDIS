@@ -25,15 +25,16 @@ plotDiagnostic <-
     x_list,
     y_list,
     batchnr,
-    sample_names) {
+    sample_names,
+    QC_pattern) {
         # if there is QC
         ## Define colors for rt,int pairs and x,y pairs
-        if (length(grep("QC", sample_names)) != 0) {
+        if (length(grep(QC_pattern, sample_names)) != 0) {
             # Select only the  QC's for plotting
-            rt_list <- rt_list[grep("QC", sample_names)]
-            int_list <- int_list[grep("QC", sample_names)]
-            x_list <- x_list[grep("QC", sample_names)]
-            y_list <- y_list[grep("QC", sample_names)]
+            rt_list <- rt_list[grep(QC_pattern, sample_names)]
+            int_list <- int_list[grep(QC_pattern, sample_names)]
+            x_list <- x_list[grep(QC_pattern, sample_names)]
+            y_list <- y_list[grep(QC_pattern, sample_names)]
             ## Select 5 relevant QC's from beginning middle and end of the batch
             if (length(rt_list) > 5) {
                 QCs <-
@@ -46,10 +47,10 @@ plotDiagnostic <-
                 int_list <- int_list[QCs]
                 x_list <- x_list[QCs]
                 y_list <- y_list[QCs]
-                sample_names <- sample_names[grep("QC", sample_names)]
+                sample_names <- sample_names[grep(QC_pattern, sample_names)]
                 sample_names <- sample_names[QCs]
             } else {
-                sample_names <- sample_names[grep("QC", sample_names)]
+                sample_names <- sample_names[grep(QC_pattern, sample_names)]
             }
             c25 <- brewer.pal(n = length(rt_list), "Set1")
             plot_title <- paste("Component:", compound_info$ID)
@@ -117,7 +118,7 @@ plotDiagnostic <-
                 lty = c(1, 1, 1, 1),
                 pch = c(1, 16, 1, 16),
                 cex = 0.7,
-                title = "QC",
+                title = QC_pattern,
                 title.cex = 0.8
             )
             dev.off()
@@ -204,7 +205,7 @@ plotDiagnostic <-
                     lty = c(1, 1, 1, 1),
                     pch = c(1, 16, 1, 16),
                     cex = 0.7,
-                    title = "QC",
+                    title = QC_pattern,
                     title.cex = 0.8
                 )
                 dev.off()
