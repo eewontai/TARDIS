@@ -1,5 +1,10 @@
 # TARDIS 2.0
 
+## Changes in 2.7.0
+- generate std plots in screening phase
+- works also when user inputs a qc_pattern that is not "QC"
+- added smoothing parameter "smoothing_order" for the smoothing function
+
 ## Changes in 2.6.1
 - Fixed bugs (smoothing function null handling)
 
