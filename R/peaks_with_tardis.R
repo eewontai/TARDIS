@@ -467,7 +467,8 @@ tardisPeaks <-
            rt_mode = "mean",
            pval_cutoff = 0.05,
            std = TRUE,
-           STD_pattern ="STD") { # edited GUI!
+           STD_pattern ="STD",
+           smoothing_order = 3) { # edited GUI!
     # Setup the cluster (num_cores parameter)
     num_cores <- num_cores
     cl <- makeCluster(num_cores)
@@ -568,7 +569,7 @@ tardisPeaks <-
         clusterExport(cl, varlist = c("sample_names", "dbData_std", "all_files",
                                       "spectra_QC",
                                       "internal_standards_rt",
-                                      "internal_standards_mz", "smoothing", "pval_cutoff"), envir = environment())  # find variables/functions anywhere in the code
+                                      "internal_standards_mz", "smoothing", "pval_cutoff", "smoothing_order"), envir = environment())  # find variables/functions anywhere in the code
 
         ###########################
         # disable progress bar - defaults to parLapply!
@@ -582,7 +583,7 @@ tardisPeaks <-
           local_found_rt <- numeric(length(sample_names))
           for (i in 1:length(sample_names)) {
             res <- smoothingSG(
-              3,
+              smoothing_order,
               dbData_std$tr[j],
               all_files[i],
               spectra_QC,
@@ -633,7 +634,7 @@ tardisPeaks <-
                                     "spectra_QC",
                                     "smoothing",
                                     "rtRanges", "mzRanges", "diagnostic_plots",
-                                    "output_directory", "pval_cutoff", "QC_pattern"), envir = environment()) # find the variables in this function, not the global environment!
+                                    "output_directory", "pval_cutoff", "QC_pattern", "smoothing_order"), envir = environment()) # find the variables in this function, not the global environment!
 
       ##################################################################
       # load balancing
@@ -653,7 +654,7 @@ tardisPeaks <-
 
         compound_results <- list() # store each sample's results
         for (i in 1:length(sample_names)) {
-          res <- smoothingSG(3,
+          res <- smoothingSG(smoothing_order,
                              dbData$tr[j],
                              all_files[i],
                              spectra_QC,
@@ -790,7 +791,7 @@ tardisPeaks <-
           clusterExport(cl, varlist = c("sample_names", "dbData_std", "all_files",
                                         "spectra_STD",
                                         "internal_standards_rt",
-                                        "internal_standards_mz", "smoothing", "pval_cutoff"), envir = environment())  # find variables/functions anywhere in the code
+                                        "internal_standards_mz", "smoothing", "pval_cutoff", "smoothing_order"), envir = environment())  # find variables/functions anywhere in the code
 
           ###########################
           # disable progress bar - defaults to parLapply!
@@ -804,7 +805,7 @@ tardisPeaks <-
             local_found_rt <- numeric(length(sample_names))
             for (i in 1:length(sample_names)) {
               res <- smoothingSG(
-                3,
+                smoothing_order,
                 dbData_std$tr[j],
                 all_files[i],
                 spectra_STD,
@@ -855,7 +856,7 @@ tardisPeaks <-
                                       "spectra_STD",
                                       "smoothing",
                                       "rtRanges", "mzRanges", "diagnostic_plots",
-                                      "output_directory", "pval_cutoff", "STD_pattern"), envir = environment()) # find the variables in this function, not the global environment!
+                                      "output_directory", "pval_cutoff", "STD_pattern", "smoothing_order"), envir = environment()) # find the variables in this function, not the global environment!
 
         ##################################################################
         # load balancing
@@ -875,7 +876,7 @@ tardisPeaks <-
 
           compound_results <- list() # store each sample's results
           for (i in 1:length(sample_names)) {
-            res <- smoothingSG(3,
+            res <- smoothingSG(smoothing_order,
                                dbData$tr[j],
                                all_files[i],
                                spectra_STD,
@@ -1024,7 +1025,7 @@ tardisPeaks <-
                                         "spectra_QC", "smoothing",
                                         "internal_standards_rt",
                                         "internal_standards_mz", "sample_names_QC",
-                                        "spectra_QC",  "smoothing", "pval_cutoff"), envir = environment()) # find the variables in this function & the global environment!
+                                        "spectra_QC",  "smoothing", "pval_cutoff", "smoothing_order"), envir = environment()) # find the variables in this function & the global environment!
           ############################
           # disable progress bar - defaults to parLapply!
           pboptions(type = "none")
@@ -1038,7 +1039,7 @@ tardisPeaks <-
 
             for (i in 1:length(sample_names_QC)) {
               res <- smoothingSG(
-                3,
+                smoothing_order,
                 dbData_std$tr[j],
                 all_files[i],
                 spectra_QC,
@@ -1110,7 +1111,7 @@ tardisPeaks <-
           clusterExport(cl, varlist = c("sample_names_QC", "dbData", "all_files",
                                         "spectra_QC", "smoothing",
                                         "rtRanges", "mzRanges", "plots_QC",
-                                        "output_directory", "batchnr", "pval_cutoff"), envir = environment()) # find the variables in this function, not the global environment!
+                                        "output_directory", "batchnr", "pval_cutoff", "smoothing_order"), envir = environment()) # find the variables in this function, not the global environment!
 
           ####
           #splitpb(dim(rtRanges)[1] * length(sample_names_QC), dim(rtRanges)[1])
@@ -1124,7 +1125,7 @@ tardisPeaks <-
             results_QCs_batch_row <- vector("list", length(sample_names_QC))
 
             for (i in 1:length(sample_names_QC)) {
-              res <- smoothingSG(3,
+              res <- smoothingSG(smoothing_order,
                                  dbData$tr[j],
                                  all_files[i],
                                  spectra_QC,
@@ -1244,7 +1245,7 @@ tardisPeaks <-
                                       "spectra", "smoothing",
                                       "rtRanges", "mzRanges",
                                       "plots_samples", "diagnostic_plots",
-                                      "output_directory", "batchnr", "pval_cutoff", "QC_pattern"), envir = environment()) # find the variables in this function, not the global environment!
+                                      "output_directory", "batchnr", "pval_cutoff", "QC_pattern", "smoothing_order"), envir = environment()) # find the variables in this function, not the global environment!
 
         ####
         #splitpb(dim(rtRanges)[1] * length(sample_names_batch), dim(rtRanges)[1])
@@ -1258,7 +1259,7 @@ tardisPeaks <-
           results_samples_row <- vector("list", length(sample_names_batch))
 
           for (i in 1:length(sample_names_batch)) {
-            res <- smoothingSG(3,
+            res <- smoothingSG(smoothing_order,
                                dbData$tr[j],
                                all_files[i],
                                spectra,
@@ -1298,7 +1299,8 @@ tardisPeaks <-
               x_list,
               y_list,
               batchnr,
-              sample_names_batch
+              sample_names_batch,
+              STD_pattern
             )
           }
           if (diagnostic_plots == TRUE) {

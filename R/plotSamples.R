@@ -18,7 +18,14 @@
 
 
 plotSamples <- function(compound_info, output_directory, rt_list, int_list,
-    x_list, y_list, batchnr, sample_names) {
+    x_list, y_list, batchnr, sample_names, STD_pattern) {
+    if (STD_pattern != "") {
+      rt_list <- rt_list[-grep(STD_pattern, sample_names)]
+      int_list <- int_list[-grep(STD_pattern, sample_names)]
+      x_list <- x_list[-grep(STD_pattern, sample_names)]
+      y_list <- y_list[-grep(STD_pattern, sample_names)]
+      sample_names <- sample_names[-grep(STD_pattern, sample_names)]
+    }
     # Generate colors for the plots
     c25 <- brewer.pal(n = 5, "Set1")
     # Create directory if it doesn't exist
@@ -63,7 +70,7 @@ plotSamples <- function(compound_info, output_directory, rt_list, int_list,
                 b <- tail(x, 1) # right integration border
                 index_a <- which.min(abs(rt - a))
                 index_b <- which.min(abs(rt - b))
-                # polygon(): shading - finds the "Start" and "End" of the peak (the integration borders) 
+                # polygon(): shading - finds the "Start" and "End" of the peak (the integration borders)
                 # and colors the area under the curve.
                 polygon(
                     c(rt[index_a] / 60, rt[index_a:index_b] / 60, rt[index_b] / 60),
