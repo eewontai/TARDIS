@@ -1,5 +1,9 @@
 # TARDIS 1.0
 
+## Changes in 1.1.1
+- change commas in input files to points
+- NA handling logic changed: impute NAs inside a peak, convert to zeros for NAs outside of peak
+
 ## Changes in 1.1.0
 - Implement polarity filter
 
