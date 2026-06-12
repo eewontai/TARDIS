@@ -32,6 +32,11 @@ createTargetList <- function(input_directory_targets, pos_pattern, neg_pattern,
         masslist <- read_xlsx(input_directory_targets)
     }
     masslist <- data.frame(masslist)
+
+    # edited - change commas to points, faster here than editing the files in excel
+    masslist$mz <- as.numeric(gsub(",", ".", masslist$mz))
+    masslist$RT <- as.numeric(gsub(",", ".", masslist$RT))
+
     masslist_negative <-
         masslist[grep(neg_pattern, masslist[, ion_column], fixed = T), ]
     masslist_positive <-

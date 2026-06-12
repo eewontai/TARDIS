@@ -79,794 +79,1044 @@
 ## function, since for use with the GUI the file input is nice.
 
 tardisPeaks <-
-    function(file_path = NULL,
-    lcmsData = NULL,
-    dbData,
-    ppm = 5,
-    rtdev = 18,
-    mass_range = NULL,
-    polarity = "positive",
-    output_directory,
-    plots_samples = FALSE,
-    plots_QC = FALSE,
-    diagnostic_plots = TRUE,
-    batch_positions,
-    QC_pattern = "QC",
-    sample_pattern = "",
-    rt_alignment = TRUE,
-    int_std_id,
-    screening_mode = FALSE,
-    smoothing = TRUE,
-    max_int_filter = NULL) {
-        results_samples <-
-            data.frame(
-                Component = character(0),
-                Sample = character(0),
-                AUC = numeric(0),
-                SNR = numeric(0),
-                peak_cor = numeric(0),
-                foundRT = numeric(0),
-                pop = numeric(0)
+  function(file_path = NULL,
+           lcmsData = NULL,
+           dbData,
+           ppm = 5,
+           rtdev = 18,
+           mass_range = NULL,
+           polarity = "positive",
+           output_directory,
+           plots_samples = FALSE,
+           plots_QC = FALSE,
+           diagnostic_plots = TRUE,
+           batch_positions,
+           QC_pattern = "QC",
+           sample_pattern = "",
+           rt_alignment = TRUE,
+           int_std_id,
+           screening_mode = FALSE,
+           smoothing = TRUE,
+           max_int_filter = NULL) {
+    results_samples <-
+      data.frame(
+        Component = character(0),
+        Sample = character(0),
+        AUC = numeric(0),
+        SNR = numeric(0),
+        peak_cor = numeric(0),
+        foundRT = numeric(0),
+        pop = numeric(0)
+      )
+    results_QCs <-
+      data.frame(
+        Component = character(0),
+        Sample = character(0),
+        AUC = numeric(0),
+        SNR = numeric(0),
+        peak_cor = numeric(0),
+        foundRT = numeric(0),
+        pop = numeric(0)
+      )
+    if (is.null(file_path) == FALSE) {
+      files <-
+        list.files(file_path, full.names = T, pattern = "mzML|mzXML")
+    }
+    if (is.null(lcmsData) == FALSE) {
+      if (polarity == "positive") {
+        spectra(lcmsData) <- filterPolarity(spectra(lcmsData), 1)
+      } else if (polarity == "negative") {
+        spectra(lcmsData) <- filterPolarity(spectra(lcmsData), 0)
+      }
+      suppressWarnings(
+        lcmsData <- linkSampleData(
+          lcmsData,
+          with = "sampleData.raw_file = spectra.dataOrigin"
+        )
+      )
+    }
+    if (is.null(mass_range) == FALSE) {
+      dbData <-
+        dbData[which(dbData$`m/z` < mass_range[2] &
+                       dbData$`m/z` > mass_range[1]), ]
+    }
+    info_compounds <- dbData
+    if (screening_mode == TRUE) {
+      results_screening <-
+        data.frame(
+          Component = character(0),
+          Sample = character(0),
+          AUC = numeric(0),
+          SNR = numeric(0),
+          peak_cor = numeric(0),
+          foundRT = numeric(0),
+          pop = numeric(0)
+        )
+      if (is.null(file_path) == FALSE) {
+        QC_files <-
+          files[grep(pattern = QC_pattern, files)]
+        
+        data_QC <- MsExperiment()
+        experimentFiles(data_QC) <-
+          MsExperimentFiles(
+            mzML = setNames(
+              QC_files,
+              basename(tools::file_path_sans_ext(QC_files))
             )
-        results_QCs <-
-            data.frame(
-                Component = character(0),
-                Sample = character(0),
-                AUC = numeric(0),
-                SNR = numeric(0),
-                peak_cor = numeric(0),
-                foundRT = numeric(0),
-                pop = numeric(0)
-            )
-        if (is.null(file_path) == FALSE) {
-            files <-
-                list.files(file_path, full.names = T, pattern = "mzML|mzXML")
+          )
+        
+        sampleData(data_QC) <- DataFrame(
+          sample_index = 1:length(QC_files),
+          spectraOrigin = QC_files
+        )
+        sampleData(data_QC)$type <- "QC"
+        
+        sp <- Spectra(experimentFiles(data_QC)[["mzML"]],
+                      backend = MsBackendMzR(),
+                      BPPARAM = SnowParam(workers = 1L)
+        )
+        
+        if (polarity == "positive") {
+          spectra(data_QC) <- filterPolarity(sp, 1)
+        } else if (polarity == "negative") {
+          spectra(data_QC) <- filterPolarity(sp, 0)
         }
-        if (is.null(lcmsData) == FALSE) {
-            if (polarity == "positive") {
-                spectra(lcmsData) <- filterPolarity(spectra(lcmsData), 1)
-            } else if (polarity == "negative") {
-                spectra(lcmsData) <- filterPolarity(spectra(lcmsData), 0)
+        
+        sampleData(data_QC)$raw_file <- normalizePath(QC_files)
+        data_QC <- linkSampleData(
+          data_QC,
+          with = "sampleData.raw_file = spectra.dataOrigin"
+        )
+      } else {
+        data_QC <- lcmsData[which(sampleData(lcmsData)$type == QC_pattern)]
+      }
+      if (is.null(mass_range) == FALSE) {
+        data_QC <- filterSpectra(data_QC, filterMzRange, mz = mass_range) |>
+          filterSpectra(filterEmptySpectra)
+      } else {
+        data_QC <- data_QC
+      }
+      spectra_QC <- data_QC@spectra
+      checkScans(spectra_QC)
+      data_QC@spectra <- spectra_QC
+      ## Create ranges for all compounds
+      ranges <- createRanges(data_QC, dbData, ppm, rtdev)
+      ## Get mz & rt ranges
+      mzRanges <- ranges[[1L]]
+      rtRanges <- ranges[[2L]]
+      
+      if (rt_alignment == TRUE) {
+        ## Get the ranges for the internal standard compounds
+        internal_standards_rt <-
+          rtRanges[which(dbData$ID %in% int_std_id), ]
+        internal_standards_mz <-
+          mzRanges[which(dbData$ID %in% int_std_id), ]
+        dbData_std <- dbData[which(dbData$ID %in% int_std_id), ]
+        ## Get QC sample names
+        sample_names <-
+          lapply(data_QC@sampleData$spectraOrigin, basename)
+        ## Initiate empty vectors
+        int_std_foundrt <- c()
+        int_std <- c()
+        ## Retrieve foundRT of internal standards in QC's,
+        ## loop over all samples and all internal standards
+        for (j in 1:dim(internal_standards_rt)[1]) {
+          rt_list <- list()
+          int_list <- list()
+          x_list <- list()
+          y_list <- list()
+          for (i in 1:length(sample_names)) {
+            sample_name <- unlist(sample_names[i])
+            filtered_spectra <- TARDIS:::filterSingle(
+              spectra_QC,
+              unique(dataOrigin(spectra_QC))[i],
+              internal_standards_rt[j, ],
+              internal_standards_mz[j, ]
+            )
+            eic <- extract_eic(filtered_spectra)
+            rt <- eic[, 1L]
+            int <- eic[, 2L]
+            # NA intensities are set to zero --> should change this so only NA's
+            # at the edges get changed to zero, so the ones IN the peak will be
+            # imputed
+            length_error <- length(int)
+            # --- NA handling ---
+            if (length(int) == 0) {
+              return(list(
+                rt = rep(NA, length_error),
+                int = rep(NA, length_error),
+                border = rep(NA, 3)
+              ))
             }
-            suppressWarnings(
-                lcmsData <- linkSampleData(
-                    lcmsData,
-                    with = "sampleData.raw_file = spectra.dataOrigin"
-                )
-            )
-        }
-        if (is.null(mass_range) == FALSE) {
-            dbData <-
-                dbData[which(dbData$`m/z` < mass_range[2] &
-                    dbData$`m/z` > mass_range[1]), ]
-        }
-        info_compounds <- dbData
-        if (screening_mode == TRUE) {
-            results_screening <-
-                data.frame(
-                    Component = character(0),
-                    Sample = character(0),
-                    AUC = numeric(0),
-                    SNR = numeric(0),
-                    peak_cor = numeric(0),
-                    foundRT = numeric(0),
-                    pop = numeric(0)
-                )
-            if (is.null(file_path) == FALSE) {
-                QC_files <-
-                    files[grep(pattern = QC_pattern, files)]
-
-                data_QC <- MsExperiment()
-                experimentFiles(data_QC) <-
-                    MsExperimentFiles(
-                        mzML = setNames(
-                            QC_files,
-                            basename(tools::file_path_sans_ext(QC_files))
-                        )
-                    )
-
-                sampleData(data_QC) <- DataFrame(
-                    sample_index = 1:length(QC_files),
-                    spectraOrigin = QC_files
-                )
-                sampleData(data_QC)$type <- "QC"
-
-                sp <- Spectra(experimentFiles(data_QC)[["mzML"]],
-                    backend = MsBackendMzR(),
-                    BPPARAM = SnowParam(workers = 1L)
-                )
-
-                if (polarity == "positive") {
-                    spectra(data_QC) <- filterPolarity(sp, 1)
-                } else if (polarity == "negative") {
-                    spectra(data_QC) <- filterPolarity(sp, 0)
+            
+            na_ind <- is.na(int)
+            
+            if (any(na_ind)) {
+              
+              # --- long NA gaps -> zero ---
+              r <- rle(na_ind)
+              ends <- cumsum(r$lengths)
+              starts <- ends - r$lengths + 1
+              
+              long_na_runs <- which(r$values & r$lengths > 5)
+              
+              for (i in long_na_runs) {
+                int[starts[i]:ends[i]] <- 0
+              }
+              
+              # recompute NA mask AFTER modification
+              na_ind <- is.na(int)
+              non_na_idx <- which(!na_ind)
+              
+              # --- all NA case ---
+              if (length(non_na_idx) == 0) {
+                int <- rep(0, length(int))
+              } else {
+                first <- non_na_idx[1]
+                last  <- tail(non_na_idx, 1)
+                
+                int_peak <- int[first:last]
+                
+                # interpolate internal NA only
+                if (anyNA(int_peak)) {
+                  int_peak <- imputeLinInterpol(int_peak)
                 }
-
-                sampleData(data_QC)$raw_file <- normalizePath(QC_files)
-                data_QC <- linkSampleData(
-                    data_QC,
-                    with = "sampleData.raw_file = spectra.dataOrigin"
+                
+                int <- c(
+                  rep(0, first - 1),
+                  int_peak,
+                  rep(0, length(int) - last)
                 )
+              }
+            }
+            #int[which(is.na(int))] <- 0
+            # To determine the borders more easily, smoothing is applied
+            # if intensity length is under 7, lower filter length
+            # to odd number <= intensity length
+            if (length(int) < 7) {
+              if (length(int) %% 2 == 0) {
+                fl <- length(int) - 1
+              } else {
+                fl <- length(int)
+              }
             } else {
-                data_QC <- lcmsData[which(sampleData(lcmsData)$type == QC_pattern)]
+              fl <- 7
             }
-            if (is.null(mass_range) == FALSE) {
-                data_QC <- filterSpectra(data_QC, filterMzRange, mz = mass_range) |>
-                    filterSpectra(filterEmptySpectra)
+            smoothed <- sgolayfilt(int, p = 3, n = fl)
+            if (smoothing == TRUE) {
+              int <- smoothed
+              int[int < 0] <- 0
+            }
+            # Border detection
+            border <-
+              find_peak_points(rt, smoothed, dbData_std$tr[j],
+                               .check = FALSE
+              )
+            
+            # Save found RT for internal standard target
+            int_std_foundrt <-
+              cbind(int_std_foundrt, rt[border[3L]]) # this will finally contain
+            # all found rts for the different internal standards in this sample
+          }
+          
+          ## this will contain all the found rts in all samples
+          int_std <-
+            rbind(int_std, int_std_foundrt)
+          int_std_foundrt <- c()
+        }
+        ## Define parameters for retention time adjustment, based on the QC's
+        ## and the internal standards
+        param <-
+          PeakGroupsParam(
+            minFraction = 0.9,
+            span = 0.5,
+            peakGroupsMatrix = int_std
+          )
+        data_QC <- adjustRtime(data_QC, param = param)
+        data_QC <- applyAdjustedRtime(data_QC)
+      }
+      # Find all targets in x QC's
+      
+      spectra_QC <- data_QC@spectra
+      sample_names <-
+        lapply(data_QC@sampleData$spectraOrigin, basename)
+      
+      for (j in 1:dim(rtRanges)[1]) {
+        rt_list <- list()
+        int_list <- list()
+        x_list <- list()
+        y_list <- list()
+        for (i in 1:length(sample_names)) {
+          sample_name <- unlist(sample_names[i])
+          filtered_spectra <- filterSingle(
+            spectra_QC,
+            unique(dataOrigin(spectra_QC))[i],
+            rtRanges[j, ],
+            mzRanges[j, ]
+          )
+          eic <- extract_eic(filtered_spectra)
+          rt <- eic[, 1L]
+          int <- eic[, 2L]
+          length_error <- length(int)
+          # --- NA handling ---
+          if (length(int) == 0) {
+            return(list(
+              rt = rep(NA, length_error),
+              int = rep(NA, length_error),
+              border = rep(NA, 3)
+            ))
+          }
+          
+          na_ind <- is.na(int)
+          
+          if (any(na_ind)) {
+            
+            # --- long NA gaps -> zero ---
+            r <- rle(na_ind)
+            ends <- cumsum(r$lengths)
+            starts <- ends - r$lengths + 1
+            
+            long_na_runs <- which(r$values & r$lengths > 5)
+            
+            for (i in long_na_runs) {
+              int[starts[i]:ends[i]] <- 0
+            }
+            
+            # recompute NA mask AFTER modification
+            na_ind <- is.na(int)
+            non_na_idx <- which(!na_ind)
+            
+            # --- all NA case ---
+            if (length(non_na_idx) == 0) {
+              int <- rep(0, length(int))
             } else {
-                data_QC <- data_QC
+              first <- non_na_idx[1]
+              last  <- tail(non_na_idx, 1)
+              
+              int_peak <- int[first:last]
+              
+              # interpolate internal NA only
+              if (anyNA(int_peak)) {
+                int_peak <- imputeLinInterpol(int_peak)
+              }
+              
+              int <- c(
+                rep(0, first - 1),
+                int_peak,
+                rep(0, length(int) - last)
+              )
             }
-            spectra_QC <- data_QC@spectra
-            checkScans(spectra_QC)
-            data_QC@spectra <- spectra_QC
-            ## Create ranges for all compounds
-            ranges <- createRanges(data_QC, dbData, ppm, rtdev)
-            ## Get mz & rt ranges
-            mzRanges <- ranges[[1L]]
-            rtRanges <- ranges[[2L]]
-
-            if (rt_alignment == TRUE) {
-                ## Get the ranges for the internal standard compounds
-                internal_standards_rt <-
-                    rtRanges[which(dbData$ID %in% int_std_id), ]
-                internal_standards_mz <-
-                    mzRanges[which(dbData$ID %in% int_std_id), ]
-                dbData_std <- dbData[which(dbData$ID %in% int_std_id), ]
-                ## Get QC sample names
-                sample_names <-
-                    lapply(data_QC@sampleData$spectraOrigin, basename)
-                ## Initiate empty vectors
-                int_std_foundrt <- c()
-                int_std <- c()
-                ## Retrieve foundRT of internal standards in QC's,
-                ## loop over all samples and all internal standards
-                for (j in 1:dim(internal_standards_rt)[1]) {
-                    rt_list <- list()
-                    int_list <- list()
-                    x_list <- list()
-                    y_list <- list()
-                    for (i in 1:length(sample_names)) {
-                        sample_name <- unlist(sample_names[i])
-                        filtered_spectra <- TARDIS:::filterSingle(
-                            spectra_QC,
-                            unique(dataOrigin(spectra_QC))[i],
-                            internal_standards_rt[j, ],
-                            internal_standards_mz[j, ]
-                        )
-                        eic <- extract_eic(filtered_spectra)
-                        rt <- eic[, 1L]
-                        int <- eic[, 2L]
-                        # NA intensities are set to zero --> should change this so only NA's
-                        # at the edges get changed to zero, so the ones IN the peak will be
-                        # imputed
-                        int[which(is.na(int))] <- 0
-                        # To determine the borders more easily, smoothing is applied
-                        # if intensity length is under 7, lower filter length
-                        # to odd number <= intensity length
-                        if (length(int) < 7) {
-                            if (length(int) %% 2 == 0) {
-                                fl <- length(int) - 1
-                            } else {
-                                fl <- length(int)
-                            }
-                        } else {
-                            fl <- 7
-                        }
-                        smoothed <- sgolayfilt(int, p = 3, n = fl)
-                        if (smoothing == TRUE) {
-                            int <- smoothed
-                            int[int < 0] <- 0
-                        }
-                        # Border detection
-                        border <-
-                            find_peak_points(rt, smoothed, dbData_std$tr[j],
-                                .check = FALSE
-                            )
-
-                        # Save found RT for internal standard target
-                        int_std_foundrt <-
-                            cbind(int_std_foundrt, rt[border[3L]]) # this will finally contain
-                        # all found rts for the different internal standards in this sample
-                    }
-
-                    ## this will contain all the found rts in all samples
-                    int_std <-
-                        rbind(int_std, int_std_foundrt)
-                    int_std_foundrt <- c()
-                }
-                ## Define parameters for retention time adjustment, based on the QC's
-                ## and the internal standards
-                param <-
-                    PeakGroupsParam(
-                        minFraction = 0.9,
-                        span = 0.5,
-                        peakGroupsMatrix = int_std
-                    )
-                data_QC <- adjustRtime(data_QC, param = param)
-                data_QC <- applyAdjustedRtime(data_QC)
+          }
+          #int[which(is.na(int))] <- 0
+          # if intensity length is under 7, lower filter length
+          # to odd number <= intensity length
+          if (length(int) < 7) {
+            if (length(int) %% 2 == 0) {
+              fl <- length(int) - 1
+            } else {
+              fl <- length(int)
             }
-            # Find all targets in x QC's
-
-            spectra_QC <- data_QC@spectra
-            sample_names <-
-                lapply(data_QC@sampleData$spectraOrigin, basename)
-
-            for (j in 1:dim(rtRanges)[1]) {
-                rt_list <- list()
-                int_list <- list()
-                x_list <- list()
-                y_list <- list()
-                for (i in 1:length(sample_names)) {
-                    sample_name <- unlist(sample_names[i])
-                    filtered_spectra <- filterSingle(
-                        spectra_QC,
-                        unique(dataOrigin(spectra_QC))[i],
-                        rtRanges[j, ],
-                        mzRanges[j, ]
-                    )
-                    eic <- extract_eic(filtered_spectra)
-                    rt <- eic[, 1L]
-                    int <- eic[, 2L]
-                    int[which(is.na(int))] <- 0
-                    # if intensity length is under 7, lower filter length
-                    # to odd number <= intensity length
-                    if (length(int) < 7) {
-                        if (length(int) %% 2 == 0) {
-                            fl <- length(int) - 1
-                        } else {
-                            fl <- length(int)
-                        }
-                    } else {
-                        fl <- 7
-                    }
-                    smoothed <- sgolayfilt(int, p = 3, n = fl)
-                    if (smoothing == TRUE) {
-                        int <- smoothed
-                        int[int < 0] <- 0
-                    }
-                    border <-
-                        find_peak_points(rt, smoothed, dbData$tr[j], .check = FALSE)
-                    idx <- border[1L]:border[2L]
-                    x <- rt[idx]
-                    y <- int[idx]
-                    rt_list <- c(rt_list, list(rt))
-                    int_list <- c(int_list, list(int))
-                    x_list <- c(x_list, list(x))
-                    y_list <- c(y_list, list(y))
-                    ## Check if there are at least two unique values for the component
-                    if (length(unique(y)) > 1) {
-                        auc <- trapz(x, y)
-                        pop <- length(x)
-                        qscore <- qscoreCalculator(x, y)
-                        compound_info <- dbData[j, ]
-                        results_screening <- rbind(
-                            results_screening,
-                            data.frame(
-                                Component = compound_info$ID,
-                                Sample = sample_name,
-                                AUC = auc,
-                                MaxInt = int[border[3L]],
-                                SNR = qscore[1],
-                                peak_cor = qscore[2],
-                                foundRT = rt[border[3L]],
-                                pop = pop,
-                                compound_info
-                            )
-                        )
-                    } else {
-                        compound_info <- dbData[j, ]
-                        # Append results to the data frame with compound information
-                        results_screening <- rbind(
-                            results_screening,
-                            data.frame(
-                                Component = compound_info$ID,
-                                Sample = sample_name,
-                                AUC = NA,
-                                MaxInt = NA,
-                                SNR = NA,
-                                peak_cor = NA,
-                                foundRT = NA,
-                                pop = NA,
-                                compound_info
-                            )
-                        )
-                    }
-                }
-                # Create and save the plot for the current component
-                batchnr <- 1
-                if (diagnostic_plots == TRUE) {
-                    plotDiagnostic(
-                        compound_info,
-                        output_directory,
-                        rt_list,
-                        int_list,
-                        x_list,
-                        y_list,
-                        batchnr,
-                        sample_names
-                    )
-                }
-            }
-            avg_metrics_table <- results_screening %>%
-                group_by(Component) %>%
-                summarise_at(vars(-Sample), list(~ if (is.numeric(.)) {
-                    mean(., na.rm = TRUE)
-                } else {
-                    first(.)
-                }))
-            write.csv(avg_metrics_table,
-                file = paste0(output_directory, "qc_screening.csv")
+          } else {
+            fl <- 7
+          }
+          smoothed <- sgolayfilt(int, p = 3, n = fl)
+          if (smoothing == TRUE) {
+            int <- smoothed
+            int[int < 0] <- 0
+          }
+          border <-
+            find_peak_points(rt, smoothed, dbData$tr[j], .check = FALSE)
+          idx <- border[1L]:border[2L]
+          x <- rt[idx]
+          y <- int[idx]
+          rt_list <- c(rt_list, list(rt))
+          int_list <- c(int_list, list(int))
+          x_list <- c(x_list, list(x))
+          y_list <- c(y_list, list(y))
+          ## Check if there are at least two unique values for the component
+          if (length(unique(y)) > 1) {
+            auc <- trapz(x, y)
+            pop <- length(x)
+            qscore <- qscoreCalculator(x, y)
+            compound_info <- dbData[j, ]
+            results_screening <- rbind(
+              results_screening,
+              data.frame(
+                Component = compound_info$ID,
+                Sample = sample_name,
+                AUC = auc,
+                MaxInt = int[border[3L]],
+                SNR = qscore[1],
+                peak_cor = qscore[2],
+                foundRT = rt[border[3L]],
+                pop = pop,
+                compound_info
+              )
             )
+          } else {
+            compound_info <- dbData[j, ]
+            # Append results to the data frame with compound information
+            results_screening <- rbind(
+              results_screening,
+              data.frame(
+                Component = compound_info$ID,
+                Sample = sample_name,
+                AUC = NA,
+                MaxInt = NA,
+                SNR = NA,
+                peak_cor = NA,
+                foundRT = NA,
+                pop = NA,
+                compound_info
+              )
+            )
+          }
+        }
+        # Create and save the plot for the current component
+        batchnr <- 1
+        if (diagnostic_plots == TRUE) {
+          plotDiagnostic(
+            compound_info,
+            output_directory,
+            rt_list,
+            int_list,
+            x_list,
+            y_list,
+            batchnr,
+            sample_names
+          )
+        }
+      }
+      avg_metrics_table <- results_screening %>%
+        group_by(Component) %>%
+        summarise_at(vars(-Sample), list(~ if (is.numeric(.)) {
+          mean(., na.rm = TRUE)
         } else {
-            ## Loop over the batches
-            for (batchnr in 1:length(batch_positions)) {
-                dbData <- info_compounds # need to reset? better to keep updated from
-                # last batch?
-                results_QCs_batch <-
-                    data.frame(
-                        Component = character(0),
-                        Sample = character(0),
-                        AUC = numeric(0),
-                        SNR = numeric(0),
-                        peak_cor = numeric(0),
-                        foundRT = numeric(0),
-                        pop = numeric(0)
-                    )
-                if (is.null(file_path) == FALSE) {
-                    files_batch <-
-                        files[batch_positions[[batchnr]][1]:batch_positions[[batchnr]][2]]
-
-                    data_batch <- MsExperiment()
-                    experimentFiles(data_batch) <-
-                        MsExperimentFiles(
-                            mzML = setNames(
-                                files_batch,
-                                basename(tools::file_path_sans_ext(files_batch))
-                            )
-                        )
-
-                    sampleData(data_batch) <- DataFrame(
-                        sample_index = 1:length(files_batch),
-                        spectraOrigin = files_batch
-                    )
-                    # Define study and QC samples --> all not QC files are deemed study files
-                    sampleData(data_batch)$type <- "study"
-                    sampleData(data_batch)$type[grep(
-                        pattern = QC_pattern,
-                        files_batch
-                    )] <- "QC"
-
-                    sp <- Spectra(experimentFiles(data_batch)[["mzML"]],
+          first(.)
+        }))
+      write.csv(avg_metrics_table,
+                file = paste0(output_directory, "qc_screening.csv")
+      )
+    } else {
+      ## Loop over the batches
+      for (batchnr in 1:length(batch_positions)) {
+        dbData <- info_compounds # need to reset? better to keep updated from
+        # last batch?
+        results_QCs_batch <-
+          data.frame(
+            Component = character(0),
+            Sample = character(0),
+            AUC = numeric(0),
+            SNR = numeric(0),
+            peak_cor = numeric(0),
+            foundRT = numeric(0),
+            pop = numeric(0)
+          )
+        if (is.null(file_path) == FALSE) {
+          files_batch <-
+            files[batch_positions[[batchnr]][1]:batch_positions[[batchnr]][2]]
+          
+          data_batch <- MsExperiment()
+          experimentFiles(data_batch) <-
+            MsExperimentFiles(
+              mzML = setNames(
+                files_batch,
+                basename(tools::file_path_sans_ext(files_batch))
+              )
+            )
+          
+          sampleData(data_batch) <- DataFrame(
+            sample_index = 1:length(files_batch),
+            spectraOrigin = files_batch
+          )
+          # Define study and QC samples --> all not QC files are deemed study files
+          sampleData(data_batch)$type <- "study"
+          sampleData(data_batch)$type[grep(
+            pattern = QC_pattern,
+            files_batch
+          )] <- "QC"
+          
+          sp <- Spectra(experimentFiles(data_batch)[["mzML"]],
                         backend = MsBackendMzR(),
                         BPPARAM = SnowParam(workers = 1L)
-                    )
-                    if (polarity == "positive") {
-                        spectra(data_batch) <- filterPolarity(sp, 1)
-                    } else if (polarity == "negative") {
-                        spectra(data_batch) <- filterPolarity(sp, 0)
-                    }
-
-                    sampleData(data_batch)$raw_file <- normalizePath(files_batch)
-                    data_batch <- linkSampleData(
-                        data_batch,
-                        with = "sampleData.raw_file = spectra.dataOrigin"
-                    )
-                } else {
-                    data_batch <- lcmsData[batch_positions[[batchnr]][1]:batch_positions[[batchnr]][2]]
-                }
-                if (is.null(mass_range) == FALSE) {
-                    data_batch <- filterSpectra(data_batch, filterMzRange, mz = mass_range) |>
-                        filterSpectra(filterEmptySpectra)
-                } else {
-                    data_batch <- data_batch
-                }
-                spectra_batch <- data_batch@spectra
-                checkScans(spectra_batch)
-                data_batch@spectra <- spectra_batch
-
-                data_QC <-
-                    data_batch[which(sampleData(data_batch)$type == "QC")]
-                if (is.null(mass_range == FALSE)) {
-                    spectra_QC <- data_QC@spectra |>
-                        filterMzRange(mass_range) |>
-                        filterEmptySpectra()
-                } else {
-                    spectra_QC <- data_QC@spectra
-                }
-                ranges <- createRanges(data_QC, dbData, ppm, rtdev)
-                mzRanges <- ranges[[1]]
-                rtRanges <- ranges[[2]]
-                if (rt_alignment == TRUE) {
-                    ## Get the ranges for the internal standard compounds
-                    internal_standards_rt <-
-                        rtRanges[which(dbData$ID %in% int_std_id), ]
-                    internal_standards_mz <-
-                        mzRanges[which(dbData$ID %in% int_std_id), ]
-                    dbData_std <- dbData[which(dbData$ID %in% int_std_id), ]
-                    sample_names <-
-                        lapply(data_QC@sampleData$spectraOrigin, basename)
-                    int_std_foundrt <- c()
-                    int_std <- c()
-                    for (j in 1:dim(internal_standards_rt)[1]) {
-                        rt_list <- list()
-                        int_list <- list()
-                        x_list <- list()
-                        y_list <- list()
-                        for (i in 1:length(sample_names)) {
-                            sample_name <- unlist(sample_names[i])
-                            spectra_filtered <- filterSingle(
-                                spectra_QC,
-                                unique(dataOrigin(spectra_QC))[i],
-                                internal_standards_rt[j, ],
-                                internal_standards_mz[j, ]
-                            )
-                            eic <- extract_eic(spectra_filtered)
-                            rt <- eic[, 1L]
-                            int <- eic[, 2L]
-                            int[which(is.na(int))] <- 0
-                            # if intensity length is under 7, lower filter length
-                            # to odd number <= intensity length
-                            if (length(int) < 7) {
-                                if (length(int) %% 2 == 0) {
-                                    fl <- length(int) - 1
-                                } else {
-                                    fl <- length(int)
-                                }
-                            } else {
-                                fl <- 7
-                            }
-                            smoothed <- sgolayfilt(int, p = 3, n = fl)
-                            if (smoothing == TRUE) {
-                                int <- smoothed
-                                int[int < 0] <- 0
-                            }
-                            border <-
-                                find_peak_points(rt, smoothed, dbData_std$tr[j],
-                                    .check = FALSE
-                                )
-                            int_std_foundrt <-
-                                cbind(int_std_foundrt, rt[border[3L]])
-                        }
-                        int_std <-
-                            rbind(int_std, int_std_foundrt)
-                        int_std_foundrt <- c()
-                    }
-                    param <-
-                        PeakGroupsParam(
-                            minFraction = 0.9,
-                            span = 0.5,
-                            peakGroupsMatrix = int_std,
-                            subset = which(sampleData(data_batch)$type == "QC")
-                        )
-                    data_batch <- adjustRtime(data_batch, param = param)
-                    data_batch <- applyAdjustedRtime(data_batch)
-                }
-                ## Now, we try and find ALL compounds in the QC samples and save their
-                ## foundRT to search the compounds at that RT in the sample files
-                ## Skip this step if there aren't any QC's available.
-                data_QC <-
-                    data_batch[which(sampleData(data_batch)$type == "QC")]
-                if (length(data_QC) != 0) {
-                    sample_names <-
-                        lapply(data_QC@sampleData$spectraOrigin, basename)
-                    if (is.null(mass_range) == FALSE) {
-                        spectra_QC <- data_QC@spectra |>
-                            filterMzRange(mass_range) |>
-                            filterEmptySpectra()
-                    } else {
-                        spectra_QC <- data_QC@spectra
-                    }
-                    for (j in 1:dim(rtRanges)[1]) {
-                        rt_list <- list()
-                        int_list <- list()
-                        x_list <- list()
-                        y_list <- list()
-                        for (i in 1:length(sample_names)) {
-                            sample_name <- unlist(sample_names[i])
-                            filtered_spectra <- filterSingle(
-                                spectra_QC,
-                                unique(dataOrigin(spectra_QC))[i],
-                                rtRanges[j, ],
-                                mzRanges[j, ]
-                            )
-                            eic <- extract_eic(filtered_spectra)
-                            rt <- eic[, 1L]
-                            int <- eic[, 2L]
-                            int[which(is.na(int))] <- 0
-                            # if intensity length is under 7, lower filter length
-                            # to odd number <= intensity length
-                            if (length(int) < 7) {
-                                if (length(int) %% 2 == 0) {
-                                    fl <- length(int) - 1
-                                } else {
-                                    fl <- length(int)
-                                }
-                            } else {
-                                fl <- 7
-                            }
-                            smoothed <- sgolayfilt(int, p = 3, n = fl)
-                            if (smoothing == TRUE) {
-                                int <- smoothed
-                                int[int < 0] <- 0
-                            }
-                            border <- find_peak_points(rt, smoothed, dbData$tr[j],
-                                .check = FALSE
-                            )
-                            idx <- border[1L]:border[2L]
-                            x <- rt[idx]
-                            y <- int[idx]
-                            rt_list <- c(rt_list, list(rt))
-                            int_list <- c(int_list, list(int))
-                            x_list <- c(x_list, list(x))
-                            y_list <- c(y_list, list(y))
-                            if (length(unique(y)) > 1) {
-                                auc <- trapz(x, y)
-                                pop <- length(x)
-                                qscore <- qscoreCalculator(x, y)
-                                compound_info <- dbData[j, ]
-                                results_QCs_batch <- rbind(
-                                    results_QCs_batch,
-                                    data.frame(
-                                        Component = compound_info$ID,
-                                        Sample = sample_name,
-                                        AUC = auc,
-                                        MaxInt = int[border[3L]],
-                                        SNR = qscore[1],
-                                        peak_cor = qscore[2],
-                                        foundRT = rt[border[3L]],
-                                        pop = pop,
-                                        compound_info
-                                    )
-                                )
-                            } else {
-                                compound_info <- dbData[j, ]
-                                results_QCs_batch <- rbind(
-                                    results_QCs_batch,
-                                    data.frame(
-                                        Component = compound_info$ID,
-                                        Sample = sample_name,
-                                        AUC = NA,
-                                        MaxInt = NA,
-                                        SNR = NA,
-                                        peak_cor = NA,
-                                        foundRT = NA,
-                                        pop = NA,
-                                        compound_info
-                                    )
-                                )
-                            }
-                        }
-                        if (plots_QC == TRUE) {
-                            plotQCs(
-                                compound_info,
-                                output_directory,
-                                rt_list,
-                                int_list,
-                                x_list,
-                                y_list,
-                                batchnr,
-                                sample_names
-                            )
-                        }
-                    }
-                    results_QCs <- rbind(results_QCs, results_QCs_batch)
-                    ## Replace rtmed with average foundRT from previous results
-                    new_rt_avg <- results_QCs_batch %>%
-                        group_by(ID) %>%
-                        summarise(mean = mean(foundRT), na.rm = TRUE)
-                    dbData <- merge(dbData, new_rt_avg, by = "ID")
-                    dbData$trold <- dbData$tr
-                    dbData$tr <- new_rt_avg$mean
-                    ## If no RT is found, restore old RT
-                    for (k in 1:dim(dbData)[1]) {
-                        if (is.na(dbData$tr[k]) == TRUE) {
-                            dbData$tr[k] <- dbData$trold[k]
-                        }
-                    }
-                }
-                ## Next do the whole analysis for the samples in the same batch of the
-                ## QC's to find ALL the compounds at the corrected RT. (SAMPLES + QC)
-                ## Get sample data
-                sample_names <-
-                    lapply(data_batch@sampleData$spectraOrigin, basename)
-                # Create ranges around new RT
-                ranges <- createRanges(data_batch, dbData, ppm, rtdev)
-                mzRanges <- ranges[[1]]
-                rtRanges <- ranges[[2]]
-                if (is.null(mass_range) == FALSE) {
-                    spectra <- data_batch@spectra |>
-                        filterMzRange(mz = mass_range) |>
-                        filterEmptySpectra()
-                } else {
-                    spectra <- data_batch@spectra
-                }
-
-                for (j in 1:dim(rtRanges)[1]) {
-                    rt_list <- list()
-                    int_list <- list()
-                    x_list <- list()
-                    y_list <- list()
-                    for (i in 1:length(sample_names)) {
-                        sample_name <- unlist(sample_names[i])
-                        spectra_filtered <- filterSingle(
-                            spectra,
-                            unique(dataOrigin(spectra))[i],
-                            rtRanges[j, ],
-                            mzRanges[j, ]
-                        )
-                        eic <- extract_eic(spectra_filtered)
-                        eic <- eic[which(duplicated(eic[, 1]) == FALSE), ] # why is this here?
-                        rt <- eic[, 1L]
-                        int <- eic[, 2L]
-                        int[which(is.na(int))] <- 0
-                        # if intensity length is under 7, lower filter length
-                        # to odd number <= intensity length
-                        if (length(int) < 7) {
-                            if (length(int) %% 2 == 0) {
-                                fl <- length(int) - 1
-                            } else {
-                                fl <- length(int)
-                            }
-                        } else {
-                            fl <- 7
-                        }
-                        smoothed <- sgolayfilt(int, p = 3, n = fl)
-                        if (smoothing == TRUE) {
-                            int <- smoothed
-                            int[int < 0] <- 0
-                        }
-                        border <- find_peak_points(rt, smoothed, dbData$tr[j],
-                            .check = FALSE
-                        )
-                        idx <- border[1L]:border[2L]
-                        x <- rt[idx]
-                        y <- int[idx]
-                        rt_list <- c(rt_list, list(rt))
-                        int_list <- c(int_list, list(int))
-                        x_list <- c(x_list, list(x))
-                        y_list <- c(y_list, list(y))
-                        # Check if there are at least two unique values for the component
-                        if (length(unique(y)) > 1) {
-                            auc <- trapz(x, y)
-                            pop <- length(x)
-                            qscore <- qscoreCalculator(x, y)
-                            compound_info <- dbData[j, ]
-                            results_samples <- rbind(
-                                results_samples,
-                                data.frame(
-                                    Component = compound_info$ID,
-                                    Sample = sample_name,
-                                    AUC = auc,
-                                    MaxInt = int[border[3L]],
-                                    SNR = qscore[1],
-                                    peak_cor = qscore[2],
-                                    foundRT = rt[border[3L]],
-                                    pop = pop,
-                                    compound_info
-                                )
-                            )
-                        } else {
-                            compound_info <- dbData[j, ]
-                            results_samples <- rbind(
-                                results_samples,
-                                data.frame(
-                                    Component = compound_info$ID,
-                                    Sample = sample_name,
-                                    AUC = NA,
-                                    MaxInt = NA,
-                                    SNR = NA,
-                                    peak_cor = NA,
-                                    foundRT = NA,
-                                    pop = NA,
-                                    compound_info
-                                )
-                            )
-                        }
-                    }
-                    if (plots_samples == TRUE) {
-                        plotSamples(
-                            compound_info,
-                            output_directory,
-                            rt_list,
-                            int_list,
-                            x_list,
-                            y_list,
-                            batchnr,
-                            sample_names
-                        )
-                    }
-                    if (diagnostic_plots == TRUE) {
-                        plotDiagnostic(
-                            compound_info,
-                            output_directory,
-                            rt_list,
-                            int_list,
-                            x_list,
-                            y_list,
-                            batchnr,
-                            sample_names
-                        )
-                    }
-                }
-            }
-            results <- results_samples
-
-            if (is.null(max_int_filter) == FALSE && max_int_filter != 0) {
-                results <- results[which(results$MaxInt >= max_int_filter), ]
-            }
-
-            # AUC, int, SNR & peakcor tables for each component peak in every sample
-            auc_table <- results %>%
-                select(Component, Sample, AUC) %>%
-                spread(Sample, AUC, fill = NA, drop = FALSE)
-
-            write.csv(auc_table, file = paste0(output_directory, "auc_table.csv"))
-            pop_table <- results %>%
-                select(Component, Sample, pop) %>%
-                spread(Sample, pop, fill = NA, drop = FALSE)
-
-            write.csv(pop_table, file = paste0(output_directory, "pop_table.csv"))
-            SNR_table <- results %>%
-                select(Component, Sample, SNR) %>%
-                spread(Sample, SNR, fill = NA, drop = FALSE)
-
-            write.csv(SNR_table, file = paste0(output_directory, "snr_table.csv"))
-            int_table <- results %>%
-                select(Component, Sample, MaxInt) %>%
-                spread(Sample, MaxInt, fill = NA, drop = FALSE)
-
-            write.csv(int_table, file = paste0(output_directory, "int_table.csv"))
-            peakcor_table <- results %>%
-                select(Component, Sample, peak_cor) %>%
-                spread(Sample, peak_cor, fill = NA, drop = FALSE)
-
-            write.csv(peakcor_table, file = paste0(output_directory, "peakcor_table.csv"))
-
-
-            # summarize feature table based on QC's
-            avg_metrics_table <- NULL
-            if (length(data_QC) != 0) {
-                QC_results <- results[grep("QC", results$Sample), ]
-                avg_metrics_table <- QC_results %>%
-                    group_by(Component) %>%
-                    summarise_at(vars(-Sample), list(~ if (is.numeric(.)) {
-                        mean(., na.rm = TRUE)
-                    } else {
-                        first(.)
-                    }))
-                write_xlsx(avg_metrics_table, paste0(
-                    output_directory,
-                    "feat_table.xlsx"
+          )
+          if (polarity == "positive") {
+            spectra(data_batch) <- filterPolarity(sp, 1)
+          } else if (polarity == "negative") {
+            spectra(data_batch) <- filterPolarity(sp, 0)
+          }
+          
+          sampleData(data_batch)$raw_file <- normalizePath(files_batch)
+          data_batch <- linkSampleData(
+            data_batch,
+            with = "sampleData.raw_file = spectra.dataOrigin"
+          )
+        } else {
+          data_batch <- lcmsData[batch_positions[[batchnr]][1]:batch_positions[[batchnr]][2]]
+        }
+        if (is.null(mass_range) == FALSE) {
+          data_batch <- filterSpectra(data_batch, filterMzRange, mz = mass_range) |>
+            filterSpectra(filterEmptySpectra)
+        } else {
+          data_batch <- data_batch
+        }
+        spectra_batch <- data_batch@spectra
+        checkScans(spectra_batch)
+        data_batch@spectra <- spectra_batch
+        
+        data_QC <-
+          data_batch[which(sampleData(data_batch)$type == "QC")]
+        if (is.null(mass_range == FALSE)) {
+          spectra_QC <- data_QC@spectra |>
+            filterMzRange(mass_range) |>
+            filterEmptySpectra()
+        } else {
+          spectra_QC <- data_QC@spectra
+        }
+        ranges <- createRanges(data_QC, dbData, ppm, rtdev)
+        mzRanges <- ranges[[1]]
+        rtRanges <- ranges[[2]]
+        if (rt_alignment == TRUE) {
+          ## Get the ranges for the internal standard compounds
+          internal_standards_rt <-
+            rtRanges[which(dbData$ID %in% int_std_id), ]
+          internal_standards_mz <-
+            mzRanges[which(dbData$ID %in% int_std_id), ]
+          dbData_std <- dbData[which(dbData$ID %in% int_std_id), ]
+          sample_names <-
+            lapply(data_QC@sampleData$spectraOrigin, basename)
+          int_std_foundrt <- c()
+          int_std <- c()
+          for (j in 1:dim(internal_standards_rt)[1]) {
+            rt_list <- list()
+            int_list <- list()
+            x_list <- list()
+            y_list <- list()
+            for (i in 1:length(sample_names)) {
+              sample_name <- unlist(sample_names[i])
+              spectra_filtered <- filterSingle(
+                spectra_QC,
+                unique(dataOrigin(spectra_QC))[i],
+                internal_standards_rt[j, ],
+                internal_standards_mz[j, ]
+              )
+              eic <- extract_eic(spectra_filtered)
+              rt <- eic[, 1L]
+              int <- eic[, 2L]
+              length_error <- length(int)
+              # --- NA handling ---
+              if (length(int) == 0) {
+                return(list(
+                  rt = rep(NA, length_error),
+                  int = rep(NA, length_error),
+                  border = rep(NA, 3)
                 ))
+              }
+              
+              na_ind <- is.na(int)
+              
+              if (any(na_ind)) {
+                
+                # --- long NA gaps -> zero ---
+                r <- rle(na_ind)
+                ends <- cumsum(r$lengths)
+                starts <- ends - r$lengths + 1
+                
+                long_na_runs <- which(r$values & r$lengths > 5)
+                
+                for (i in long_na_runs) {
+                  int[starts[i]:ends[i]] <- 0
+                }
+                
+                # recompute NA mask AFTER modification
+                na_ind <- is.na(int)
+                non_na_idx <- which(!na_ind)
+                
+                # --- all NA case ---
+                if (length(non_na_idx) == 0) {
+                  int <- rep(0, length(int))
+                } else {
+                  first <- non_na_idx[1]
+                  last  <- tail(non_na_idx, 1)
+                  
+                  int_peak <- int[first:last]
+                  
+                  # interpolate internal NA only
+                  if (anyNA(int_peak)) {
+                    int_peak <- imputeLinInterpol(int_peak)
+                  }
+                  
+                  int <- c(
+                    rep(0, first - 1),
+                    int_peak,
+                    rep(0, length(int) - last)
+                  )
+                }
+              }
+              #int[which(is.na(int))] <- 0
+              # if intensity length is under 7, lower filter length
+              # to odd number <= intensity length
+              if (length(int) < 7) {
+                if (length(int) %% 2 == 0) {
+                  fl <- length(int) - 1
+                } else {
+                  fl <- length(int)
+                }
+              } else {
+                fl <- 7
+              }
+              smoothed <- sgolayfilt(int, p = 3, n = fl)
+              if (smoothing == TRUE) {
+                int <- smoothed
+                int[int < 0] <- 0
+              }
+              border <-
+                find_peak_points(rt, smoothed, dbData_std$tr[j],
+                                 .check = FALSE
+                )
+              int_std_foundrt <-
+                cbind(int_std_foundrt, rt[border[3L]])
             }
-
-            # save input parameters to .csv
-
-            input_params <- data.frame(
-                "ppm" = .collapse_safe(ppm),
-                "rtdev" = .collapse_safe(rtdev),
-                "mass_range_low" = .collapse_safe(mass_range[1]),
-                "mass_range_high" = .collapse_safe(mass_range[2]),
-                "polarity" = .collapse_safe(polarity),
-                "batch_positions" = .collapse_safe(batch_positions),
-                "QC_pattern" = .collapse_safe(QC_pattern),
-                "sample_pattern" = .collapse_safe(sample_pattern),
-                "int_std_id" = .collapse_safe(int_std_id),
-                "screening_mode" = .collapse_safe(screening_mode),
-                "rt_alignment" = .collapse_safe(rt_alignment),
-                "plots_samples" = .collapse_safe(plots_samples),
-                "plots_QC" = .collapse_safe(plots_QC),
-                "diagnostic_plots" = .collapse_safe(diagnostic_plots),
-                "max_int_filter" = .collapse_safe(max_int_filter),
-                "smoothing" = .collapse_safe(smoothing),
-                stringsAsFactors = FALSE
+            int_std <-
+              rbind(int_std, int_std_foundrt)
+            int_std_foundrt <- c()
+          }
+          param <-
+            PeakGroupsParam(
+              minFraction = 0.9,
+              span = 0.5,
+              peakGroupsMatrix = int_std,
+              subset = which(sampleData(data_batch)$type == "QC")
             )
-
-            write.csv(t(input_params),
+          data_batch <- adjustRtime(data_batch, param = param)
+          data_batch <- applyAdjustedRtime(data_batch)
+        }
+        ## Now, we try and find ALL compounds in the QC samples and save their
+        ## foundRT to search the compounds at that RT in the sample files
+        ## Skip this step if there aren't any QC's available.
+        data_QC <-
+          data_batch[which(sampleData(data_batch)$type == "QC")]
+        if (length(data_QC) != 0) {
+          sample_names <-
+            lapply(data_QC@sampleData$spectraOrigin, basename)
+          if (is.null(mass_range) == FALSE) {
+            spectra_QC <- data_QC@spectra |>
+              filterMzRange(mass_range) |>
+              filterEmptySpectra()
+          } else {
+            spectra_QC <- data_QC@spectra
+          }
+          for (j in 1:dim(rtRanges)[1]) {
+            rt_list <- list()
+            int_list <- list()
+            x_list <- list()
+            y_list <- list()
+            for (i in 1:length(sample_names)) {
+              sample_name <- unlist(sample_names[i])
+              filtered_spectra <- filterSingle(
+                spectra_QC,
+                unique(dataOrigin(spectra_QC))[i],
+                rtRanges[j, ],
+                mzRanges[j, ]
+              )
+              eic <- extract_eic(filtered_spectra)
+              rt <- eic[, 1L]
+              int <- eic[, 2L]
+              length_error <- length(int)
+              # --- NA handling ---
+              if (length(int) == 0) {
+                return(list(
+                  rt = rep(NA, length_error),
+                  int = rep(NA, length_error),
+                  border = rep(NA, 3)
+                ))
+              }
+              
+              na_ind <- is.na(int)
+              
+              if (any(na_ind)) {
+                
+                # --- long NA gaps -> zero ---
+                r <- rle(na_ind)
+                ends <- cumsum(r$lengths)
+                starts <- ends - r$lengths + 1
+                
+                long_na_runs <- which(r$values & r$lengths > 5)
+                
+                for (i in long_na_runs) {
+                  int[starts[i]:ends[i]] <- 0
+                }
+                
+                # recompute NA mask AFTER modification
+                na_ind <- is.na(int)
+                non_na_idx <- which(!na_ind)
+                
+                # --- all NA case ---
+                if (length(non_na_idx) == 0) {
+                  int <- rep(0, length(int))
+                } else {
+                  first <- non_na_idx[1]
+                  last  <- tail(non_na_idx, 1)
+                  
+                  int_peak <- int[first:last]
+                  
+                  # interpolate internal NA only
+                  if (anyNA(int_peak)) {
+                    int_peak <- imputeLinInterpol(int_peak)
+                  }
+                  
+                  int <- c(
+                    rep(0, first - 1),
+                    int_peak,
+                    rep(0, length(int) - last)
+                  )
+                }
+              }
+              #int[which(is.na(int))] <- 0
+              # if intensity length is under 7, lower filter length
+              # to odd number <= intensity length
+              if (length(int) < 7) {
+                if (length(int) %% 2 == 0) {
+                  fl <- length(int) - 1
+                } else {
+                  fl <- length(int)
+                }
+              } else {
+                fl <- 7
+              }
+              smoothed <- sgolayfilt(int, p = 3, n = fl)
+              if (smoothing == TRUE) {
+                int <- smoothed
+                int[int < 0] <- 0
+              }
+              border <- find_peak_points(rt, smoothed, dbData$tr[j],
+                                         .check = FALSE
+              )
+              idx <- border[1L]:border[2L]
+              x <- rt[idx]
+              y <- int[idx]
+              rt_list <- c(rt_list, list(rt))
+              int_list <- c(int_list, list(int))
+              x_list <- c(x_list, list(x))
+              y_list <- c(y_list, list(y))
+              if (length(unique(y)) > 1) {
+                auc <- trapz(x, y)
+                pop <- length(x)
+                qscore <- qscoreCalculator(x, y)
+                compound_info <- dbData[j, ]
+                results_QCs_batch <- rbind(
+                  results_QCs_batch,
+                  data.frame(
+                    Component = compound_info$ID,
+                    Sample = sample_name,
+                    AUC = auc,
+                    MaxInt = int[border[3L]],
+                    SNR = qscore[1],
+                    peak_cor = qscore[2],
+                    foundRT = rt[border[3L]],
+                    pop = pop,
+                    compound_info
+                  )
+                )
+              } else {
+                compound_info <- dbData[j, ]
+                results_QCs_batch <- rbind(
+                  results_QCs_batch,
+                  data.frame(
+                    Component = compound_info$ID,
+                    Sample = sample_name,
+                    AUC = NA,
+                    MaxInt = NA,
+                    SNR = NA,
+                    peak_cor = NA,
+                    foundRT = NA,
+                    pop = NA,
+                    compound_info
+                  )
+                )
+              }
+            }
+            if (plots_QC == TRUE) {
+              plotQCs(
+                compound_info,
+                output_directory,
+                rt_list,
+                int_list,
+                x_list,
+                y_list,
+                batchnr,
+                sample_names
+              )
+            }
+          }
+          results_QCs <- rbind(results_QCs, results_QCs_batch)
+          ## Replace rtmed with average foundRT from previous results
+          new_rt_avg <- results_QCs_batch %>%
+            group_by(ID) %>%
+            summarise(mean = mean(foundRT), na.rm = TRUE)
+          dbData <- merge(dbData, new_rt_avg, by = "ID")
+          dbData$trold <- dbData$tr
+          dbData$tr <- new_rt_avg$mean
+          ## If no RT is found, restore old RT
+          for (k in 1:dim(dbData)[1]) {
+            if (is.na(dbData$tr[k]) == TRUE) {
+              dbData$tr[k] <- dbData$trold[k]
+            }
+          }
+        }
+        ## Next do the whole analysis for the samples in the same batch of the
+        ## QC's to find ALL the compounds at the corrected RT. (SAMPLES + QC)
+        ## Get sample data
+        sample_names <-
+          lapply(data_batch@sampleData$spectraOrigin, basename)
+        # Create ranges around new RT
+        ranges <- createRanges(data_batch, dbData, ppm, rtdev)
+        mzRanges <- ranges[[1]]
+        rtRanges <- ranges[[2]]
+        if (is.null(mass_range) == FALSE) {
+          spectra <- data_batch@spectra |>
+            filterMzRange(mz = mass_range) |>
+            filterEmptySpectra()
+        } else {
+          spectra <- data_batch@spectra
+        }
+        
+        for (j in 1:dim(rtRanges)[1]) {
+          rt_list <- list()
+          int_list <- list()
+          x_list <- list()
+          y_list <- list()
+          for (i in 1:length(sample_names)) {
+            sample_name <- unlist(sample_names[i])
+            spectra_filtered <- filterSingle(
+              spectra,
+              unique(dataOrigin(spectra))[i],
+              rtRanges[j, ],
+              mzRanges[j, ]
+            )
+            eic <- extract_eic(spectra_filtered)
+            eic <- eic[which(duplicated(eic[, 1]) == FALSE), ] # why is this here?
+            rt <- eic[, 1L]
+            int <- eic[, 2L]
+            length_error <- length(int)
+            # --- NA handling ---
+            if (length(int) == 0) {
+              return(list(
+                rt = rep(NA, length_error),
+                int = rep(NA, length_error),
+                border = rep(NA, 3)
+              ))
+            }
+            
+            na_ind <- is.na(int)
+            
+            if (any(na_ind)) {
+              
+              # --- long NA gaps -> zero ---
+              r <- rle(na_ind)
+              ends <- cumsum(r$lengths)
+              starts <- ends - r$lengths + 1
+              
+              long_na_runs <- which(r$values & r$lengths > 5)
+              
+              for (i in long_na_runs) {
+                int[starts[i]:ends[i]] <- 0
+              }
+              
+              # recompute NA mask AFTER modification
+              na_ind <- is.na(int)
+              non_na_idx <- which(!na_ind)
+              
+              # --- all NA case ---
+              if (length(non_na_idx) == 0) {
+                int <- rep(0, length(int))
+              } else {
+                first <- non_na_idx[1]
+                last  <- tail(non_na_idx, 1)
+                
+                int_peak <- int[first:last]
+                
+                # interpolate internal NA only
+                if (anyNA(int_peak)) {
+                  int_peak <- imputeLinInterpol(int_peak)
+                }
+                
+                int <- c(
+                  rep(0, first - 1),
+                  int_peak,
+                  rep(0, length(int) - last)
+                )
+              }
+            }
+            #int[which(is.na(int))] <- 0
+            # if intensity length is under 7, lower filter length
+            # to odd number <= intensity length
+            if (length(int) < 7) {
+              if (length(int) %% 2 == 0) {
+                fl <- length(int) - 1
+              } else {
+                fl <- length(int)
+              }
+            } else {
+              fl <- 7
+            }
+            smoothed <- sgolayfilt(int, p = 3, n = fl)
+            if (smoothing == TRUE) {
+              int <- smoothed
+              int[int < 0] <- 0
+            }
+            border <- find_peak_points(rt, smoothed, dbData$tr[j],
+                                       .check = FALSE
+            )
+            idx <- border[1L]:border[2L]
+            x <- rt[idx]
+            y <- int[idx]
+            rt_list <- c(rt_list, list(rt))
+            int_list <- c(int_list, list(int))
+            x_list <- c(x_list, list(x))
+            y_list <- c(y_list, list(y))
+            # Check if there are at least two unique values for the component
+            if (length(unique(y)) > 1) {
+              auc <- trapz(x, y)
+              pop <- length(x)
+              qscore <- qscoreCalculator(x, y)
+              compound_info <- dbData[j, ]
+              results_samples <- rbind(
+                results_samples,
+                data.frame(
+                  Component = compound_info$ID,
+                  Sample = sample_name,
+                  AUC = auc,
+                  MaxInt = int[border[3L]],
+                  SNR = qscore[1],
+                  peak_cor = qscore[2],
+                  foundRT = rt[border[3L]],
+                  pop = pop,
+                  compound_info
+                )
+              )
+            } else {
+              compound_info <- dbData[j, ]
+              results_samples <- rbind(
+                results_samples,
+                data.frame(
+                  Component = compound_info$ID,
+                  Sample = sample_name,
+                  AUC = NA,
+                  MaxInt = NA,
+                  SNR = NA,
+                  peak_cor = NA,
+                  foundRT = NA,
+                  pop = NA,
+                  compound_info
+                )
+              )
+            }
+          }
+          if (plots_samples == TRUE) {
+            plotSamples(
+              compound_info,
+              output_directory,
+              rt_list,
+              int_list,
+              x_list,
+              y_list,
+              batchnr,
+              sample_names
+            )
+          }
+          if (diagnostic_plots == TRUE) {
+            plotDiagnostic(
+              compound_info,
+              output_directory,
+              rt_list,
+              int_list,
+              x_list,
+              y_list,
+              batchnr,
+              sample_names
+            )
+          }
+        }
+      }
+      results <- results_samples
+      
+      if (is.null(max_int_filter) == FALSE && max_int_filter != 0) {
+        results <- results[which(results$MaxInt >= max_int_filter), ]
+      }
+      
+      # AUC, int, SNR & peakcor tables for each component peak in every sample
+      auc_table <- results %>%
+        select(Component, Sample, AUC) %>%
+        spread(Sample, AUC, fill = NA, drop = FALSE)
+      
+      write.csv(auc_table, file = paste0(output_directory, "auc_table.csv"))
+      pop_table <- results %>%
+        select(Component, Sample, pop) %>%
+        spread(Sample, pop, fill = NA, drop = FALSE)
+      
+      write.csv(pop_table, file = paste0(output_directory, "pop_table.csv"))
+      SNR_table <- results %>%
+        select(Component, Sample, SNR) %>%
+        spread(Sample, SNR, fill = NA, drop = FALSE)
+      
+      write.csv(SNR_table, file = paste0(output_directory, "snr_table.csv"))
+      int_table <- results %>%
+        select(Component, Sample, MaxInt) %>%
+        spread(Sample, MaxInt, fill = NA, drop = FALSE)
+      
+      write.csv(int_table, file = paste0(output_directory, "int_table.csv"))
+      peakcor_table <- results %>%
+        select(Component, Sample, peak_cor) %>%
+        spread(Sample, peak_cor, fill = NA, drop = FALSE)
+      
+      write.csv(peakcor_table, file = paste0(output_directory, "peakcor_table.csv"))
+      
+      
+      # summarize feature table based on QC's
+      avg_metrics_table <- NULL
+      if (length(data_QC) != 0) {
+        QC_results <- results[grep("QC", results$Sample), ]
+        avg_metrics_table <- QC_results %>%
+          group_by(Component) %>%
+          summarise_at(vars(-Sample), list(~ if (is.numeric(.)) {
+            mean(., na.rm = TRUE)
+          } else {
+            first(.)
+          }))
+        write_xlsx(avg_metrics_table, paste0(
+          output_directory,
+          "feat_table.xlsx"
+        ))
+      }
+      
+      # save input parameters to .csv
+      
+      input_params <- data.frame(
+        "ppm" = .collapse_safe(ppm),
+        "rtdev" = .collapse_safe(rtdev),
+        "mass_range_low" = .collapse_safe(mass_range[1]),
+        "mass_range_high" = .collapse_safe(mass_range[2]),
+        "polarity" = .collapse_safe(polarity),
+        "batch_positions" = .collapse_safe(batch_positions),
+        "QC_pattern" = .collapse_safe(QC_pattern),
+        "sample_pattern" = .collapse_safe(sample_pattern),
+        "int_std_id" = .collapse_safe(int_std_id),
+        "screening_mode" = .collapse_safe(screening_mode),
+        "rt_alignment" = .collapse_safe(rt_alignment),
+        "plots_samples" = .collapse_safe(plots_samples),
+        "plots_QC" = .collapse_safe(plots_QC),
+        "diagnostic_plots" = .collapse_safe(diagnostic_plots),
+        "max_int_filter" = .collapse_safe(max_int_filter),
+        "smoothing" = .collapse_safe(smoothing),
+        stringsAsFactors = FALSE
+      )
+      
+      write.csv(t(input_params),
                 file = paste0(output_directory, "input_params.csv"),
                 row.names = TRUE
-            )
-
-            return(list(auc_table, avg_metrics_table))
-        }
+      )
+      
+      return(list(auc_table, avg_metrics_table))
     }
+  }
