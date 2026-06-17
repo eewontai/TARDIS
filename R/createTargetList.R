@@ -44,10 +44,10 @@ createTargetList <- function(input_directory_targets, pos_pattern, neg_pattern,
     colnames(masslist_positive) <- c("ID", "NAME", "m/z", "tr")
     colnames(masslist_negative) <- c("ID", "NAME", "m/z", "tr")
     # Convert commas in numeric values to dots
-    masslist_positive$"m/z" <- as.numeric(gsub(",", ".", masslist$"m/z"))
-    masslist_positive$tr <- as.numeric(gsub(",", ".", masslist$tr))
-    masslist_negative$"m/z" <- as.numeric(gsub(",", ".", masslist$"m/z"))
-    masslist_negative$tr <- as.numeric(gsub(",", ".", masslist$tr))
+    masslist_positive$"m/z" <- as.numeric(gsub(",", ".", masslist_positive$"m/z"))
+    masslist_positive$tr <- as.numeric(gsub(",", ".", masslist_positive$tr))
+    masslist_negative$"m/z" <- as.numeric(gsub(",", ".", masslist_negative$"m/z"))
+    masslist_negative$tr <- as.numeric(gsub(",", ".", masslist_negative$tr))
     # Set RT in seconds & make numeric
     masslist_positive$tr <- as.numeric(masslist_positive$tr) * 60
     masslist_positive$`m/z` <- as.numeric(masslist_positive$"m/z")
