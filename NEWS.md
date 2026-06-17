@@ -1,5 +1,8 @@
 # TARDIS 2.0
 
+## Changes in 2.7.1
+- fixed bug: account for different column names in createTargetList input
+
 ## Changes in 2.7.0
 - generate std plots in screening phase
 - works also when user inputs a qc_pattern that is not "QC"
