@@ -32,11 +32,6 @@ createTargetList <- function(input_directory_targets, pos_pattern, neg_pattern,
         masslist <- read_xlsx(input_directory_targets)
     }
     masslist <- data.frame(masslist)
-
-    # edited - change commas to points, faster here than editing the files in excel
-    masslist$mz <- as.numeric(gsub(",", ".", masslist$mz))
-    masslist$RT <- as.numeric(gsub(",", ".", masslist$RT))
-
     masslist_negative <-
         masslist[grep(neg_pattern, masslist[, ion_column], fixed = T), ]
     masslist_positive <-
@@ -48,6 +43,11 @@ createTargetList <- function(input_directory_targets, pos_pattern, neg_pattern,
         masslist_negative[, columns_of_interest]
     colnames(masslist_positive) <- c("ID", "NAME", "m/z", "tr")
     colnames(masslist_negative) <- c("ID", "NAME", "m/z", "tr")
+    # Convert commas in numeric values to dots
+    masslist_positive$"m/z" <- as.numeric(gsub(",", ".", masslist$"m/z"))
+    masslist_positive$tr <- as.numeric(gsub(",", ".", masslist$tr))
+    masslist_negative$"m/z" <- as.numeric(gsub(",", ".", masslist$"m/z"))
+    masslist_negative$tr <- as.numeric(gsub(",", ".", masslist$tr))
     # Set RT in seconds & make numeric
     masslist_positive$tr <- as.numeric(masslist_positive$tr) * 60
     masslist_positive$`m/z` <- as.numeric(masslist_positive$"m/z")
