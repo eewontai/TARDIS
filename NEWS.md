@@ -1,11 +1,16 @@
-# TARDIS 1.0
+# TARDIS 1.1
+
+## Changes in 1.1.2
+- Fix bug with change commas in input files to points, introduced in 1.1.1
 
 ## Changes in 1.1.1
-- change commas in input files to points
+- Change commas in input files to points
 - NA handling logic changed: impute NAs inside a peak, convert to zeros for NAs outside of peak
 
 ## Changes in 1.1.0
 - Implement polarity filter
+
+# TARDIS 1.0
 
 ## Changes in 1.0.1
 - Quick fix for integrateSinglePeak
